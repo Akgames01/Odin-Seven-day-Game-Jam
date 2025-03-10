@@ -55,6 +55,11 @@ backgroundColor : rl.Color = {100, 100, 170, 255}
 currentScene : string = ""
 playerSrc : rl.Rectangle
 playerDestination : rl.Rectangle 
+playerDirection : string
+playerCollidingLeft : bool
+playerCollidingRight : bool
+playerCollidingUp : bool
+playerCollidingDown : bool
 editorMode : bool 
 camera : rl.Camera2D
 movementSpeed : f32 = 400
@@ -76,7 +81,10 @@ update :: proc() {
             editorObjectSelectionHandler()
             levelObjectEditor()
         }
-        playerMovement()
+        playerMovementY()
+        playerCollisionCheckY()
+        playerMovementX()
+        playerCollisionCheckX()
         levelObjectRemover()
     }
 }
@@ -95,9 +103,13 @@ inputEditorTextBoxHandler :: proc() {
         }
         else {
             key := i32(rl.GetKeyPressed())
-            run := rune(key)
             if key >= 63 && key < 91 || key == 32 {
-                strings.write_encoded_rune(&inputTextBuilder, rune(key), false)
+                if strings.builder_len(inputTextBuilder) == 0 {
+                    strings.write_encoded_rune(&inputTextBuilder, rune(key), false)
+                }
+                else {
+                    strings.write_encoded_rune(&inputTextBuilder, rune(key + 32), false)
+                }
             }
         }
     }
@@ -127,6 +139,7 @@ levelObjectEditor :: proc() {
         levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].y = mp.y
         if rl.IsKeyDown(.M) && rl.IsMouseButtonPressed(.LEFT) {
             levelObjectSelected = false
+            levelObjectSelectedIndex = -1
         }
         if rl.IsKeyDown(.LEFT_SHIFT) && rl.GetMouseWheelMove() > 0 && strings.contains(levelData[chosenLevel].objectName[levelObjectSelectedIndex], "Tile") {
             levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].y += 1
@@ -190,19 +203,79 @@ editorObjectSelectionHandler :: proc() {
         
     }
 }
-playerMovement :: proc() {
+playerMovementY :: proc() {
     dt := rl.GetFrameTime()
-    if rl.IsKeyDown(.A) {
-        playerDestination.x -= movementSpeed*dt
-    }
     if rl.IsKeyDown(.W) {
         playerDestination.y -= movementSpeed*dt
+        playerDirection = "up"
     }
     if rl.IsKeyDown(.S) {
         playerDestination.y += movementSpeed*dt
+        playerDirection = "down"
+    }
+
+}
+playerMovementX :: proc() {
+    dt := rl.GetFrameTime()
+    if rl.IsKeyDown(.A) {
+        playerDestination.x -= movementSpeed*dt
+        playerDirection = "left"
     }
     if rl.IsKeyDown(.D) {
         playerDestination.x += movementSpeed*dt
+        playerDirection = "right"
+    }
+}
+playerCollisionCheckX :: proc() {
+    chosenLevel := getChosenLevel(currentScene)
+    for des,idx in levelData[chosenLevel].destinationRect {
+        if strings.contains(levelData[chosenLevel].objectName[idx], "Wall") {
+            for i in 0..<levelData[chosenLevel].renderGrid[idx].x {
+                for j in 0..<levelData[chosenLevel].renderGrid[idx].y {
+                    wallRect := rl.Rectangle{des.x + des.width*j, des.y + des.height*i, des.width, des.height}
+                    colliderRect := rl.GetCollisionRec(playerDestination, wallRect)
+                    if colliderRect.width != 0 {
+                        directionSign : f32
+                        playerRelative : rl.Vector2 = {playerDestination.x + playerDestination.width/2 - (wallRect.x + wallRect.width/2), playerDestination.y + playerDestination.height/2 - (wallRect.y + wallRect.height/2)}
+                        if playerRelative.x < 0 {
+                            directionSign = -1
+                        }
+                        else if playerRelative.x > 0 {
+                            directionSign = 1
+                        }
+                        directionFix := colliderRect.width*directionSign
+                        playerDestination.x += directionFix
+                        break
+                    }
+                }
+            }
+        }
+    }
+}
+playerCollisionCheckY :: proc() {
+    chosenLevel := getChosenLevel(currentScene)
+    for des,idx in levelData[chosenLevel].destinationRect {
+        if strings.contains(levelData[chosenLevel].objectName[idx], "Wall") {
+            for i in 0..<levelData[chosenLevel].renderGrid[idx].x {
+                for j in 0..<levelData[chosenLevel].renderGrid[idx].y {
+                    wallRect := rl.Rectangle{des.x + des.width*j, des.y + des.height*i, des.width, des.height}
+                    colliderRect := rl.GetCollisionRec(playerDestination, wallRect)
+                    if colliderRect.height != 0 {
+                        directionSign : f32
+                        playerRelative : rl.Vector2 = {playerDestination.x + playerDestination.width/2 - (wallRect.x + wallRect.width/2), playerDestination.y + playerDestination.height/2 - (wallRect.y + wallRect.height/2)}
+                        if playerRelative.y < 0 {
+                            directionSign = -1
+                        }
+                        else if playerRelative.y > 0 {
+                            directionSign = 1
+                        }
+                        directionFix := colliderRect.height*directionSign
+                        playerDestination.y += directionFix
+                        break
+                    }
+                }
+            }
+        }
     }
 }
 mainMenuButtonHandler :: proc() {
@@ -272,7 +345,7 @@ drawScene :: proc() {
                 }
             }
         }
-        rl.DrawRectangle(i32(playerDestination.x), i32(playerDestination.y), 30, 30, rl.RED)
+        rl.DrawRectangle(i32(playerDestination.x), i32(playerDestination.y), i32(playerDestination.width), i32(playerDestination.height), rl.RED)
         if editorMode {
             for ob,idx in levelEditorObject.destRect {
                 rl.DrawTexturePro(textureAtlas, levelEditorObject.srcRect[idx], ob, {0,0}, 0.0, rl.WHITE)
@@ -372,7 +445,7 @@ init :: proc() {
     // fmt.print("main menu buttons object : ", mainMenuButtons, "\n")
     editorMode = false
     playerSrc = {0,0,0,0}
-    playerDestination = {0,0,0,0}
+    playerDestination = {0,0,32,32}
     camera = rl.Camera2D{rl.Vector2{f32(SCREEN_WIDTH/2), f32(SCREEN_HEIGHT/2)}, rl.Vector2{playerDestination.x - (playerDestination.width/2),playerDestination.y - (playerDestination.height/2)}, 0.0, 1.0}
     
     editorMode = false
