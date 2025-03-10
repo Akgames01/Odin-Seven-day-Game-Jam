@@ -86,13 +86,15 @@ update :: proc() {
         playerMovementX()
         playerCollisionCheckX()
         levelObjectRemover()
+        setCameraTarget()
     }
 }
 inputEditorTextBoxHandler :: proc() {
-    if rl.CheckCollisionPointRec(rl.GetMousePosition(), levelEditorObject.destRect[0]) && rl.IsMouseButtonPressed(.LEFT) {
+    mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
+    if rl.CheckCollisionPointRec(mp, levelEditorObject.destRect[0]) && rl.IsMouseButtonPressed(.LEFT) {
         inputTextBoxEnable = true
     }
-    else if !rl.CheckCollisionPointRec(rl.GetMousePosition(), levelEditorObject.destRect[0]) && rl.IsMouseButtonPressed(.LEFT) {
+    else if !rl.CheckCollisionPointRec(mp, levelEditorObject.destRect[0]) && rl.IsMouseButtonPressed(.LEFT) {
         inputTextBoxEnable = false
     }
     if inputTextBoxEnable {
@@ -116,8 +118,9 @@ inputEditorTextBoxHandler :: proc() {
 }
 levelObjectRemover :: proc() {
     chosenLevel := getChosenLevel(currentScene)
+    mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
     for des,idx in levelData[chosenLevel].destinationRect {
-        if rl.CheckCollisionPointRec(rl.GetMousePosition(), des) && rl.IsMouseButtonPressed(.RIGHT) {
+        if rl.CheckCollisionPointRec(mp, des) && rl.IsMouseButtonPressed(.RIGHT) {
             ordered_remove(&levelData[chosenLevel].destinationRect, idx)
             ordered_remove(&levelData[chosenLevel].sourceRect, idx)
             ordered_remove(&levelData[chosenLevel].objectName, idx)
@@ -128,13 +131,14 @@ levelObjectRemover :: proc() {
 levelObjectEditor :: proc() {
     chosenLevel := getChosenLevel(currentScene)
     for des,idx in levelData[chosenLevel].destinationRect {
-        if rl.CheckCollisionPointRec(rl.GetMousePosition(), des) && rl.IsKeyDown(.M) && rl.IsMouseButtonPressed(.MIDDLE) {
+        mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
+        if rl.CheckCollisionPointRec(mp, des) && rl.IsKeyDown(.M) && rl.IsMouseButtonPressed(.MIDDLE) {
             levelObjectSelected = true
             levelObjectSelectedIndex = idx
         }
     }
     if levelObjectSelected {
-        mp := rl.GetMousePosition()
+        mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
         levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].x = mp.x
         levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].y = mp.y
         if rl.IsKeyDown(.M) && rl.IsMouseButtonPressed(.LEFT) {
@@ -195,7 +199,8 @@ editorObjectSelectionHandler :: proc() {
         editorObjectSelectedDestRect.height = editorObjectSelectedDestRect.height * 0.5
     }
     for des,idx in levelEditorAsset.destinationRect {
-        if rl.CheckCollisionPointRec(rl.GetMousePosition(), des) && rl.IsMouseButtonPressed(.LEFT) {
+        mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
+        if rl.CheckCollisionPointRec(mp, des) && rl.IsMouseButtonPressed(.LEFT) {
             editorObjectSelected = true
             editorObjectSelectedDestRect = rl.Rectangle{des.x, des.y, des.width, des.height}
             editorObjectSelectedSrcRect = levelEditorAsset.sourceRect[idx]
@@ -211,7 +216,7 @@ editorObjectSelectionHandler :: proc() {
         }
     }
     if editorObjectSelected {
-        mp := rl.GetMousePosition()
+        mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
         editorObjectSelectedDestRect.x = mp.x
         editorObjectSelectedDestRect.y = mp.y
         selectedLevel := getChosenLevel(currentScene)
@@ -239,7 +244,6 @@ playerMovementY :: proc() {
         playerDestination.y += movementSpeed*dt
         playerDirection = "down"
     }
-
 }
 playerMovementX :: proc() {
     dt := rl.GetFrameTime()
@@ -304,9 +308,12 @@ playerCollisionCheckY :: proc() {
         }
     }
 }
+setCameraTarget :: proc() {
+    camera.target = rl.Vector2{playerDestination.x, playerDestination.y}
+}
 mainMenuButtonHandler :: proc() {
     for sr,idx in mainMenuButtons.srcRect {
-        mousePointer := rl.GetMousePosition()
+        mousePointer := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
         if rl.CheckCollisionPointRec(mousePointer, mainMenuButtons.destRect[idx]) && rl.IsMouseButtonPressed(.LEFT) {
             mainMenuButtons.srcRect[idx].x = 272
             mainMenuButtons.srcRect[idx].y = 16
