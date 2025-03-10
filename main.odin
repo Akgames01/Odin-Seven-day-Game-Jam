@@ -153,6 +153,19 @@ levelObjectEditor :: proc() {
         else if rl.IsKeyDown(.LEFT_CONTROL) && rl.GetMouseWheelMove() < 0 && levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].x > 1 && strings.contains(levelData[chosenLevel].objectName[levelObjectSelectedIndex], "Tile") {
             levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].x -= 1
         }
+        //for changing the respective scale -> width and height 
+        if rl.IsKeyDown(.Q) && rl.GetMouseWheelMove() > 0 {
+            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width = levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width * 2.0
+        }
+        else if rl.IsKeyDown(.Q) && rl.GetMouseWheelMove() < 0 && levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width > 16 {
+            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width = levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width * 0.5
+        }
+        if rl.IsKeyDown(.X) && rl.GetMouseWheelMove() > 0 {
+            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height = levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height * 2.0
+        }
+        else if rl.IsKeyDown(.X) && rl.GetMouseWheelMove() < 0 && levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height > 16 {
+            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height = levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height * 0.5
+        }
     }
 }
 editorObjectSelectionHandler :: proc() {
@@ -167,6 +180,19 @@ editorObjectSelectionHandler :: proc() {
     }
     else if rl.IsKeyDown(.LEFT_CONTROL) && rl.GetMouseWheelMove() < 0 && editorObjectSelectedRenderGrid.x > 1 && strings.contains(editorObjectSelectedName, "Tile") {
         editorObjectSelectedRenderGrid.x -= 1
+    }
+    //for changing the respective scale -> width and height 
+    if rl.IsKeyDown(.Q) && rl.GetMouseWheelMove() > 0 {
+        editorObjectSelectedDestRect.width = editorObjectSelectedDestRect.width * 2.0
+    }
+    else if rl.IsKeyDown(.Q) && rl.GetMouseWheelMove() < 0 && editorObjectSelectedDestRect.width > 16 {
+        editorObjectSelectedDestRect.width = editorObjectSelectedDestRect.width * 0.5
+    }
+    if rl.IsKeyDown(.X) && rl.GetMouseWheelMove() > 0 {
+        editorObjectSelectedDestRect.height = editorObjectSelectedDestRect.height * 2.0
+    }
+    else if rl.IsKeyDown(.X) && rl.GetMouseWheelMove() < 0 && editorObjectSelectedDestRect.height > 16 {
+        editorObjectSelectedDestRect.height = editorObjectSelectedDestRect.height * 0.5
     }
     for des,idx in levelEditorAsset.destinationRect {
         if rl.CheckCollisionPointRec(rl.GetMousePosition(), des) && rl.IsMouseButtonPressed(.LEFT) {
@@ -390,6 +416,9 @@ drawScene :: proc() {
                         }
                     }
                 }
+                else {
+                    rl.DrawTexturePro(textureAtlas, editorObjectSelectedSrcRect, editorObjectSelectedDestRect, {0,0}, 0.0, rl.WHITE)
+                }
             }
         }
     }
@@ -501,7 +530,7 @@ main :: proc() {
 }
 
 setTextureDataValues :: proc() { 
-    assetNames :[8]string = {
+    assetNames :[14]string = {
         "levelEditorInputBox",
         "levelEditorTextureBox",
         "mainMenuButtons",
@@ -510,8 +539,14 @@ setTextureDataValues :: proc() {
         "WallTopTileLeftEnd",
         "WallTopTileRightEnd",
         "WallTopTile",
+        "FloorTrapTile",
+        "FloorTrapTileHole",
+        "RedLaser",
+        "RedLaserVertical",
+        "RedLaser",
+        "RedLaserVertical",
     }
-    srcRects : [8]rl.Rectangle = {
+    srcRects : [14]rl.Rectangle = {
         {16,144,80,16},
         {16,16,160,112},
         {208,16,32,16},
@@ -520,6 +555,12 @@ setTextureDataValues :: proc() {
         {240,96,16,16},
         {272,96,16,16},
         {256,96,16,16},
+        {304,48,32,32},
+        {304,80,32,32},
+        {352,48,48,16},
+        {416,32,16,48},
+        {352,64,48,16},
+        {432,32,16,48},
     }
     for an,idx in assetNames {
         append(&textureData.assetName, an)
