@@ -371,7 +371,13 @@ drawScene :: proc() {
                 }
             }
         }
+        //a render queue system for the z sorting based on relative coordinates 
         rl.DrawRectangle(i32(playerDestination.x), i32(playerDestination.y), i32(playerDestination.width), i32(playerDestination.height), rl.RED)
+        for sr,idx in levelData[chosenLevel].sourceRect {
+            if !strings.contains(levelData[chosenLevel].objectName[idx], "Tile") {
+                rl.DrawTexturePro(textureAtlas, sr, levelData[chosenLevel].destinationRect[idx], {0,0}, 0.0, rl.WHITE)
+            }
+        }
         if editorMode {
             for ob,idx in levelEditorObject.destRect {
                 rl.DrawTexturePro(textureAtlas, levelEditorObject.srcRect[idx], ob, {0,0}, 0.0, rl.WHITE)
