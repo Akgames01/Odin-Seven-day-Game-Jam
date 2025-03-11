@@ -52,7 +52,9 @@ isRunning : bool
 SCREEN_HEIGHT : int = 1080
 SCREEN_WIDTH : int = 1920
 backgroundColor : rl.Color = {100, 100, 170, 255}
+backgroundColorCopy : rl.Color = {100, 100, 170, 255}
 currentScene : string = ""
+previousScene : string = ""
 playerSrc : rl.Rectangle
 playerDestination : rl.Rectangle 
 playerDirection : string
@@ -64,6 +66,7 @@ toggleAlarm : bool = false
 startAlarm : bool = false
 endAlarm : bool = false
 alarmAlpha : f32 = 0.0
+playerUnderFakeWall : bool = false
 update :: proc() {
     isRunning = !rl.WindowShouldClose()
     frameCount += 1
@@ -82,12 +85,15 @@ update :: proc() {
             inputEditorTextBoxHandler()
             editorObjectSelectionHandler()
             levelObjectEditor()
+            levelObjectRemover()
+            adjustCameraZoom()
         }
         playerMovementY()
         playerCollisionCheckY()
         playerMovementX()
         playerCollisionCheckX()
-        levelObjectRemover()
+        playerCollisionCheckFakeWall()
+        trapCollisionCheck()
         setCameraTarget()
         if rl.IsKeyPressed(.P) {
             toggleAlarm = !toggleAlarm
@@ -101,6 +107,7 @@ update :: proc() {
             endFade()
         }
     }
+    sceneSwitcher()
 }
 inputEditorTextBoxHandler :: proc() {
     mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
@@ -129,11 +136,18 @@ inputEditorTextBoxHandler :: proc() {
         }
     }
 }
+//for editing purposes only 
+sceneSwitcher :: proc() {
+    if rl.IsKeyPressed(.ESCAPE) {
+        currentScene = previousScene
+        backgroundColor = backgroundColorCopy
+    }
+}
 levelObjectRemover :: proc() {
     chosenLevel := getChosenLevel(currentScene)
     mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
     for des,idx in levelData[chosenLevel].destinationRect {
-        if rl.CheckCollisionPointRec(mp, des) && rl.IsMouseButtonPressed(.RIGHT) {
+        if !levelObjectSelected && rl.CheckCollisionPointRec(mp, des) && rl.IsMouseButtonPressed(.RIGHT) {
             ordered_remove(&levelData[chosenLevel].destinationRect, idx)
             ordered_remove(&levelData[chosenLevel].sourceRect, idx)
             ordered_remove(&levelData[chosenLevel].objectName, idx)
@@ -272,7 +286,7 @@ playerMovementX :: proc() {
 playerCollisionCheckX :: proc() {
     chosenLevel := getChosenLevel(currentScene)
     for des,idx in levelData[chosenLevel].destinationRect {
-        if strings.contains(levelData[chosenLevel].objectName[idx], "Wall") {
+        if strings.contains(levelData[chosenLevel].objectName[idx], "Wall") && !strings.contains(levelData[chosenLevel].objectName[idx], "FakeWall") {
             for i in 0..<levelData[chosenLevel].renderGrid[idx].x {
                 for j in 0..<levelData[chosenLevel].renderGrid[idx].y {
                     wallRect := rl.Rectangle{des.x + des.width*j, des.y + des.height*i, des.width, des.height}
@@ -298,7 +312,7 @@ playerCollisionCheckX :: proc() {
 playerCollisionCheckY :: proc() {
     chosenLevel := getChosenLevel(currentScene)
     for des,idx in levelData[chosenLevel].destinationRect {
-        if strings.contains(levelData[chosenLevel].objectName[idx], "Wall") {
+        if strings.contains(levelData[chosenLevel].objectName[idx], "Wall") && !strings.contains(levelData[chosenLevel].objectName[idx], "FakeWall") {
             for i in 0..<levelData[chosenLevel].renderGrid[idx].x {
                 for j in 0..<levelData[chosenLevel].renderGrid[idx].y {
                     wallRect := rl.Rectangle{des.x + des.width*j, des.y + des.height*i, des.width, des.height}
@@ -321,8 +335,61 @@ playerCollisionCheckY :: proc() {
         }
     }
 }
+playerCollisionCheckFakeWall :: proc() {
+    chosenLevel := getChosenLevel(currentScene)
+    for des,idx in levelData[chosenLevel].destinationRect {
+        if strings.contains(levelData[chosenLevel].objectName[idx], "FakeWall") {
+            playerPoint := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height}
+            wallRect := rl.Rectangle{des.x , des.y , des.width*levelData[chosenLevel].renderGrid[idx].y*1.25,  des.height*levelData[chosenLevel].renderGrid[idx].x*1.25 }
+            if rl.CheckCollisionPointRec(playerPoint, wallRect) {
+                playerUnderFakeWall = true
+                break
+            }
+            else {
+                playerUnderFakeWall = false
+            }
+        }
+    }
+}
+trapCollisionCheck :: proc() {
+    chosenLevel := getChosenLevel(currentScene)
+    if frameCount%12 == 1 {
+        for des,idx in levelData[chosenLevel].destinationRect {
+            if strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapTile") {
+                playerCentre := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}
+                if rl.CheckCollisionPointRec(playerCentre, des) {
+                    ordered_remove(&levelData[chosenLevel].destinationRect, idx)
+                    ordered_remove(&levelData[chosenLevel].sourceRect, idx)
+                    ordered_remove(&levelData[chosenLevel].objectName, idx)
+                    ordered_remove(&levelData[chosenLevel].renderGrid, idx)
+                    break
+                }
+            }
+        }
+    }
+    else if frameCount%12 == 0 {
+        for des,idx in levelData[chosenLevel].destinationRect {
+            if strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapHole") {
+                playerCentre := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}
+                if rl.CheckCollisionPointRec(playerCentre, des) {
+                    previousScene = currentScene
+                    currentScene = "Game Over"
+                    backgroundColor = rl.BLACK
+                }
+            }
+        }
+    }
+}
 setCameraTarget :: proc() {
     camera.target = rl.Vector2{playerDestination.x, playerDestination.y}
+}
+adjustCameraZoom :: proc() {
+    if rl.IsKeyDown(.Z) && rl.GetMouseWheelMove() > 0 {
+        camera.zoom += 0.1
+    }
+    else if rl.IsKeyDown(.Z) && rl.GetMouseWheelMove() < 0 {
+        camera.zoom -= 0.1
+    }
 }
 mainMenuButtonHandler :: proc() {
     for sr,idx in mainMenuButtons.srcRect {
@@ -334,6 +401,7 @@ mainMenuButtonHandler :: proc() {
                 isRunning = !isRunning
             }
             else if mainMenuButtons.text[idx] == "Start"{
+                previousScene = currentScene
                 currentScene = "Level1"
             }
         }
@@ -409,7 +477,7 @@ drawScene :: proc() {
             fmt.print("current level data object : ", levelData[chosenLevel], "\n")
         }
         for sr,idx in levelData[chosenLevel].sourceRect {
-            if strings.contains(levelData[chosenLevel].objectName[idx], "Tile") {
+            if (strings.contains(levelData[chosenLevel].objectName[idx], "Tile") || strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapHole")) && !strings.contains(levelData[chosenLevel].objectName[idx], "FakeWallTopTile"){
                 for i in 0..<i32(levelData[chosenLevel].renderGrid[idx].x) {
                     for j in 0..<i32(levelData[chosenLevel].renderGrid[idx].y) {
                         destRect := rl.Rectangle{levelData[chosenLevel].destinationRect[idx].x + levelData[chosenLevel].destinationRect[idx].width*f32(j), levelData[chosenLevel].destinationRect[idx].y + levelData[chosenLevel].destinationRect[idx].height*f32(i), levelData[chosenLevel].destinationRect[idx].width, levelData[chosenLevel].destinationRect[idx].height}
@@ -421,7 +489,22 @@ drawScene :: proc() {
         //a render queue system for the z sorting based on relative coordinates 
         rl.DrawRectangle(i32(playerDestination.x), i32(playerDestination.y), i32(playerDestination.width), i32(playerDestination.height), rl.RED)
         for sr,idx in levelData[chosenLevel].sourceRect {
-            if !strings.contains(levelData[chosenLevel].objectName[idx], "Tile") {
+            if strings.contains(levelData[chosenLevel].objectName[idx], "FakeWallTopTile"){
+                for i in 0..<i32(levelData[chosenLevel].renderGrid[idx].x) {
+                    for j in 0..<i32(levelData[chosenLevel].renderGrid[idx].y) {
+                        destRect := rl.Rectangle{levelData[chosenLevel].destinationRect[idx].x + levelData[chosenLevel].destinationRect[idx].width*f32(j), levelData[chosenLevel].destinationRect[idx].y + levelData[chosenLevel].destinationRect[idx].height*f32(i), levelData[chosenLevel].destinationRect[idx].width, levelData[chosenLevel].destinationRect[idx].height}
+                        if playerUnderFakeWall {
+                            rl.DrawTexturePro(textureAtlas, sr, destRect, {0,0}, 0.0, rl.Color{255,255,255,100})
+                        }
+                        else {
+                            rl.DrawTexturePro(textureAtlas, sr, destRect, {0,0}, 0.0, rl.WHITE)
+                        }
+                    }
+                }
+            }
+        }
+        for sr,idx in levelData[chosenLevel].sourceRect {
+            if !strings.contains(levelData[chosenLevel].objectName[idx], "Tile") && !strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapHole") {
                 rl.DrawTexturePro(textureAtlas, sr, levelData[chosenLevel].destinationRect[idx], {0,0}, 0.0, rl.WHITE)
             }
         }
@@ -478,12 +561,16 @@ drawScene :: proc() {
             }
         }
     }
+    if currentScene == "Game Over" {
+        rl.DrawText("Game Over!", i32(f32(SCREEN_WIDTH)/2.5),i32(f32(SCREEN_HEIGHT)/2.2), 50, rl.WHITE)
+    }
 }
 render :: proc() {
     rl.BeginDrawing()
     rl.BeginMode2D(camera)
     rl.ClearBackground(backgroundColor)
     drawScene()
+    rl.DrawFPS(i32(playerDestination.x + 500), i32(playerDestination.y - 400))
     rl.EndMode2D()
     rl.EndDrawing()
 }
@@ -492,6 +579,8 @@ init :: proc() {
     rl.InitWindow(i32(SCREEN_WIDTH), i32(SCREEN_HEIGHT), "Puzzle Game")
     rl.InitAudioDevice()
     rl.SetConfigFlags({.VSYNC_HINT})
+    rl.SetTargetFPS(100)
+    rl.SetExitKey(.KP_0)
     isRunning = true
     inputTextBoxEnable = false 
     currentScene = "Main Menu"
@@ -532,7 +621,7 @@ init :: proc() {
     playerSrc = {0,0,0,0}
     playerDestination = {0,0,32,32}
     camera = rl.Camera2D{rl.Vector2{f32(SCREEN_WIDTH/2), f32(SCREEN_HEIGHT/2)}, rl.Vector2{playerDestination.x - (playerDestination.width/2),playerDestination.y - (playerDestination.height/2)}, 0.0, 1.0}
-    
+    camera.zoom += 0.1
     editorMode = false
     editorObjectSelected = false
     if level_data,ok := os.read_entire_file("level.json", context.temp_allocator); ok {
@@ -575,9 +664,11 @@ main :: proc() {
         render()
     }
     quit()
-    if level_data, err:= json.marshal(levelData, allocator = context.temp_allocator); err == nil {
-        os.write_entire_file("level.json", level_data)
-    } 
+    if editorMode {
+        if level_data, err:= json.marshal(levelData, allocator = context.temp_allocator); err == nil {
+            os.write_entire_file("level.json", level_data)
+        } 
+    }
     delete(mainMenuButtons.destRect)
     delete(mainMenuButtons.srcRect)
     delete(mainMenuButtons.text)
@@ -587,7 +678,7 @@ main :: proc() {
 }
 
 setTextureDataValues :: proc() { 
-    assetNames :[14]string = {
+    assetNames :[19]string = {
         "levelEditorInputBox",
         "levelEditorTextureBox",
         "mainMenuButtons",
@@ -597,13 +688,18 @@ setTextureDataValues :: proc() {
         "WallTopTileRightEnd",
         "WallTopTile",
         "FloorTrapTile",
-        "FloorTrapTileHole",
+        "FloorTrapHole",
         "RedLaser",
         "RedLaserVertical",
         "RedLaser",
         "RedLaserVertical",
+        "ExitBanner",
+        "ExitNeonLight",
+        "FakeWallTopTileLeftEnd",
+        "FakeWallTopTileRightEnd",
+        "FakeWallTopTile",
     }
-    srcRects : [14]rl.Rectangle = {
+    srcRects : [19]rl.Rectangle = {
         {16,144,80,16},
         {16,16,160,112},
         {208,16,32,16},
@@ -618,6 +714,12 @@ setTextureDataValues :: proc() {
         {416,32,16,48},
         {352,64,48,16},
         {432,32,16,48},
+        {416,96,64,32},
+        {496,96,64,32},
+        {240,128,16,16},
+        {272,128,16,16},
+        {256,128,16,16},
+        
     }
     for an,idx in assetNames {
         append(&textureData.assetName, an)
