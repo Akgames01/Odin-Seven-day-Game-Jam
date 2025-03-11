@@ -56,15 +56,17 @@ currentScene : string = ""
 playerSrc : rl.Rectangle
 playerDestination : rl.Rectangle 
 playerDirection : string
-playerCollidingLeft : bool
-playerCollidingRight : bool
-playerCollidingUp : bool
-playerCollidingDown : bool
 editorMode : bool 
 camera : rl.Camera2D
+frameCount : int 
 movementSpeed : f32 = 400
+toggleAlarm : bool = false
+startAlarm : bool = false
+endAlarm : bool = false
+alarmAlpha : f32 = 0.0
 update :: proc() {
     isRunning = !rl.WindowShouldClose()
+    frameCount += 1
     if currentScene == "Main Menu" {
         mainMenuButtonHandler()
     }
@@ -87,6 +89,17 @@ update :: proc() {
         playerCollisionCheckX()
         levelObjectRemover()
         setCameraTarget()
+        if rl.IsKeyPressed(.P) {
+            toggleAlarm = !toggleAlarm
+            startAlarm = !startAlarm
+            alarmAlpha = 0
+        }
+        if startAlarm {
+            startFade()
+        }
+        if endAlarm {
+            endFade()
+        }
     }
 }
 inputEditorTextBoxHandler :: proc() {
@@ -349,6 +362,33 @@ getChosenLevel :: proc(levelString : string) -> int {
     }
     return 0
 }
+startFade :: proc() {
+    if frameCount%12 == 1 {
+        if alarmAlpha < 1  {
+            alarmAlpha += 0.001
+        }
+        else {
+            startAlarm = false
+            endAlarm = true
+        }
+    }
+}
+endFade :: proc() {
+    if frameCount%12 == 1 {
+        if alarmAlpha > 0  {
+            alarmAlpha -= 0.001
+        }
+        else {
+            endAlarm = false
+            startAlarm = true
+        }
+    }
+}
+drawAlarmRec :: proc() {
+    cameraRect := rl.Rectangle{playerDestination.x - f32(SCREEN_WIDTH)/2, playerDestination.y - f32(SCREEN_HEIGHT)/2, f32(SCREEN_WIDTH), f32(SCREEN_HEIGHT)}
+    color := rl.Fade(rl.RED, alarmAlpha)
+    rl.DrawRectanglePro(cameraRect, {0,0}, 0.0, color)
+}
 drawScene :: proc() {
     if currentScene == "Main Menu" {
         camera.target = {f32(SCREEN_WIDTH)/2, f32(SCREEN_HEIGHT)/2}
@@ -384,6 +424,9 @@ drawScene :: proc() {
             if !strings.contains(levelData[chosenLevel].objectName[idx], "Tile") {
                 rl.DrawTexturePro(textureAtlas, sr, levelData[chosenLevel].destinationRect[idx], {0,0}, 0.0, rl.WHITE)
             }
+        }
+        if toggleAlarm {
+            drawAlarmRec()
         }
         if editorMode {
             for ob,idx in levelEditorObject.destRect {
@@ -502,6 +545,7 @@ init :: proc() {
         fmt.print("json unmarshall unsuccessful")
         levelData[0].levelName = "Level1"
     }
+    frameCount = 0
 }
 
 quit :: proc() {
