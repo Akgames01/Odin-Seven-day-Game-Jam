@@ -22,14 +22,15 @@ TextureData :: struct {
     assetName : [dynamic]string,
     sourceRects : [dynamic]rl.Rectangle,
 }
-LeveData :: struct {
+LevelData :: struct {
     levelName : string, 
     objectName : [dynamic]string,
     renderGrid : [dynamic]rl.Vector2,
     sourceRect : [dynamic]rl.Rectangle, 
     destinationRect : [dynamic]rl.Rectangle,
 }
-levelData : [1]LeveData
+levelData : [dynamic]LevelData
+levelDataCopy : [1]LevelData
 LevelEditorAssets :: struct {
     objectName : [dynamic]string,
     sourceRect : [dynamic]rl.Rectangle, 
@@ -45,6 +46,7 @@ editorObjectSelectedRenderGrid: rl.Vector2
 levelObjectSelected : bool
 levelObjectSelectedIndex : int
 mainMenuButtons : Button
+PuzzleSelectButtons : Button
 returnToMenuButton : Button
 levelEditorObject : LevelEdit
 inputTextBoxEnable : bool
@@ -57,6 +59,7 @@ backgroundColor : rl.Color = rl.BLACK
 backgroundColorCopy : rl.Color = {100, 100, 170, 255}
 currentScene : string = ""
 previousScene : string = ""
+nextScene : string = ""
 playerSrc : rl.Rectangle
 playerDestination : rl.Rectangle 
 playerDirection : string
@@ -84,6 +87,13 @@ update :: proc() {
     frameCount += 1
     if currentScene == "Main Menu" {
         mainMenuButtonHandler()
+        
+        if len(nextScene)>0 && frameCountCooldown() {
+            currentScene = nextScene
+        }
+    }
+    if currentScene == "Puzzle Select" {
+        puzzleMenuButtonHandler()
     }
     if strings.contains(currentScene, "Level") {
         if rl.IsKeyPressed(.F2) {
@@ -167,60 +177,64 @@ sceneSwitcher :: proc() {
 levelObjectRemover :: proc() {
     chosenLevel := getChosenLevel(currentScene)
     mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
-    for des,idx in levelData[chosenLevel].destinationRect {
-        if !levelObjectSelected && rl.CheckCollisionPointRec(mp, des) && rl.IsMouseButtonPressed(.RIGHT) {
-            ordered_remove(&levelData[chosenLevel].destinationRect, idx)
-            ordered_remove(&levelData[chosenLevel].sourceRect, idx)
-            ordered_remove(&levelData[chosenLevel].objectName, idx)
-            ordered_remove(&levelData[chosenLevel].renderGrid, idx)
+    if chosenLevel < len(levelData) {
+        for des,idx in levelData[chosenLevel].destinationRect {
+            if !levelObjectSelected && rl.CheckCollisionPointRec(mp, des) && rl.IsMouseButtonPressed(.RIGHT) {
+                ordered_remove(&levelData[chosenLevel].destinationRect, idx)
+                ordered_remove(&levelData[chosenLevel].sourceRect, idx)
+                ordered_remove(&levelData[chosenLevel].objectName, idx)
+                ordered_remove(&levelData[chosenLevel].renderGrid, idx)
+            }
         }
     }
 }
 levelObjectEditor :: proc() {
     chosenLevel := getChosenLevel(currentScene)
-    for des,idx in levelData[chosenLevel].destinationRect {
-        mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
-        if rl.CheckCollisionPointRec(mp, des) && rl.IsKeyDown(.M) && rl.IsMouseButtonPressed(.MIDDLE) {
-            levelObjectSelected = true
-            levelObjectSelectedIndex = idx
+    if chosenLevel < len(levelData) {
+        for des,idx in levelData[chosenLevel].destinationRect {
+            mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
+            if rl.CheckCollisionPointRec(mp, des) && rl.IsKeyDown(.M) && rl.IsMouseButtonPressed(.MIDDLE) {
+                levelObjectSelected = true
+                levelObjectSelectedIndex = idx
+            }
         }
-    }
-    if levelObjectSelected {
-        mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
-        levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].x = mp.x
-        levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].y = mp.y
-        if rl.IsKeyDown(.M) && rl.IsMouseButtonPressed(.LEFT) {
-            levelObjectSelected = false
-            // remX := i32(levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].x)%16
-            // remY := i32(levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].y)%16
-            // levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].x -= f32(remX)
-            // levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].y -= f32(remY)
-            levelObjectSelectedIndex = -1
-        }
-        if rl.IsKeyDown(.LEFT_SHIFT) && rl.GetMouseWheelMove() > 0 && strings.contains(levelData[chosenLevel].objectName[levelObjectSelectedIndex], "Tile") {
-            levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].y += 1
-        }
-        else if rl.IsKeyDown(.LEFT_SHIFT) && rl.GetMouseWheelMove() < 0 && levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].y > 1 && strings.contains(levelData[chosenLevel].objectName[levelObjectSelectedIndex], "Tile")  {
-            levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].y -= 1
-        }
-        if rl.IsKeyDown(.LEFT_CONTROL) && rl.GetMouseWheelMove() > 0 && strings.contains(levelData[chosenLevel].objectName[levelObjectSelectedIndex], "Tile") {
-            levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].x += 1
-        }
-        else if rl.IsKeyDown(.LEFT_CONTROL) && rl.GetMouseWheelMove() < 0 && levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].x > 1 && strings.contains(levelData[chosenLevel].objectName[levelObjectSelectedIndex], "Tile") {
-            levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].x -= 1
-        }
-        //for changing the respective scale -> width and height 
-        if rl.IsKeyDown(.Q) && rl.GetMouseWheelMove() > 0 {
-            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width = levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width * 2.0
-        }
-        else if rl.IsKeyDown(.Q) && rl.GetMouseWheelMove() < 0 && levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width > 16 {
-            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width = levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width * 0.5
-        }
-        if rl.IsKeyDown(.X) && rl.GetMouseWheelMove() > 0 {
-            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height = levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height * 2.0
-        }
-        else if rl.IsKeyDown(.X) && rl.GetMouseWheelMove() < 0 && levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height > 16 {
-            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height = levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height * 0.5
+        if levelObjectSelected {
+            mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
+            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].x = mp.x
+            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].y = mp.y
+            if rl.IsKeyDown(.M) && rl.IsMouseButtonPressed(.LEFT) {
+                levelObjectSelected = false
+                // remX := i32(levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].x)%16
+                // remY := i32(levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].y)%16
+                // levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].x -= f32(remX)
+                // levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].y -= f32(remY)
+                levelObjectSelectedIndex = -1
+            }
+            if rl.IsKeyDown(.LEFT_SHIFT) && rl.GetMouseWheelMove() > 0 && strings.contains(levelData[chosenLevel].objectName[levelObjectSelectedIndex], "Tile") {
+                levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].y += 1
+            }
+            else if rl.IsKeyDown(.LEFT_SHIFT) && rl.GetMouseWheelMove() < 0 && levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].y > 1 && strings.contains(levelData[chosenLevel].objectName[levelObjectSelectedIndex], "Tile")  {
+                levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].y -= 1
+            }
+            if rl.IsKeyDown(.LEFT_CONTROL) && rl.GetMouseWheelMove() > 0 && strings.contains(levelData[chosenLevel].objectName[levelObjectSelectedIndex], "Tile") {
+                levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].x += 1
+            }
+            else if rl.IsKeyDown(.LEFT_CONTROL) && rl.GetMouseWheelMove() < 0 && levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].x > 1 && strings.contains(levelData[chosenLevel].objectName[levelObjectSelectedIndex], "Tile") {
+                levelData[chosenLevel].renderGrid[levelObjectSelectedIndex].x -= 1
+            }
+            //for changing the respective scale -> width and height 
+            if rl.IsKeyDown(.Q) && rl.GetMouseWheelMove() > 0 {
+                levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width = levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width * 2.0
+            }
+            else if rl.IsKeyDown(.Q) && rl.GetMouseWheelMove() < 0 && levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width > 16 {
+                levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width = levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].width * 0.5
+            }
+            if rl.IsKeyDown(.X) && rl.GetMouseWheelMove() > 0 {
+                levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height = levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height * 2.0
+            }
+            else if rl.IsKeyDown(.X) && rl.GetMouseWheelMove() < 0 && levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height > 16 {
+                levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height = levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].height * 0.5
+            }
         }
     }
 }
@@ -272,20 +286,33 @@ editorObjectSelectionHandler :: proc() {
         editorObjectSelectedDestRect.x = mp.x
         editorObjectSelectedDestRect.y = mp.y
         selectedLevel := getChosenLevel(currentScene)
-        if rl.IsKeyDown(.M) && rl.IsMouseButtonPressed(.LEFT) {
-            // remX := i32(editorObjectSelectedDestRect.x)%16
-            // remY := i32(editorObjectSelectedDestRect.y)%16
-            // editorObjectSelectedDestRect.x -= f32(remX)
-            // editorObjectSelectedDestRect.y -= f32(remY)
-            append(&levelData[selectedLevel].destinationRect, editorObjectSelectedDestRect)
-            append(&levelData[selectedLevel].sourceRect, editorObjectSelectedSrcRect)
-            append(&levelData[selectedLevel].objectName, editorObjectSelectedName)
-            append(&levelData[selectedLevel].renderGrid, editorObjectSelectedRenderGrid)
-            editorObjectSelected = false
-            editorObjectSelectedDestRect = rl.Rectangle{0,0,0,0}
-            editorObjectSelectedSrcRect = rl.Rectangle{0,0,0,0}
-            editorObjectSelectedName = ""
-            editorObjectSelectedRenderGrid = rl.Vector2{0,0}
+        if selectedLevel < len(levelData) {
+            if rl.IsKeyDown(.M) && rl.IsMouseButtonPressed(.LEFT) {
+                // remX := i32(editorObjectSelectedDestRect.x)%16
+                // remY := i32(editorObjectSelectedDestRect.y)%16
+                // editorObjectSelectedDestRect.x -= f32(remX)
+                // editorObjectSelectedDestRect.y -= f32(remY)
+                append(&levelData[selectedLevel].destinationRect, editorObjectSelectedDestRect)
+                append(&levelData[selectedLevel].sourceRect, editorObjectSelectedSrcRect)
+                append(&levelData[selectedLevel].objectName, editorObjectSelectedName)
+                append(&levelData[selectedLevel].renderGrid, editorObjectSelectedRenderGrid)
+                editorObjectSelected = false
+                editorObjectSelectedDestRect = rl.Rectangle{0,0,0,0}
+                editorObjectSelectedSrcRect = rl.Rectangle{0,0,0,0}
+                editorObjectSelectedName = ""
+                editorObjectSelectedRenderGrid = rl.Vector2{0,0}
+            }
+        }
+        else {
+            placeHolderRectangle := rl.Rectangle{0,0,0,0}
+            tempLevelDataObject : LevelData = {
+                levelName = currentScene, 
+            }
+            append(&tempLevelDataObject.destinationRect, placeHolderRectangle)
+            append(&tempLevelDataObject.sourceRect, placeHolderRectangle)
+            append(&tempLevelDataObject.objectName, "")
+            append(&tempLevelDataObject.renderGrid, rl.Vector2{1,1})
+            append(&levelData, tempLevelDataObject)
         }
         
     }
@@ -314,24 +341,26 @@ playerMovementX :: proc() {
 }
 playerCollisionCheckX :: proc() {
     chosenLevel := getChosenLevel(currentScene)
-    for des,idx in levelData[chosenLevel].destinationRect {
-        if strings.contains(levelData[chosenLevel].objectName[idx], "Wall") && !strings.contains(levelData[chosenLevel].objectName[idx], "FakeWall") {
-            for i in 0..<levelData[chosenLevel].renderGrid[idx].x {
-                for j in 0..<levelData[chosenLevel].renderGrid[idx].y {
-                    wallRect := rl.Rectangle{des.x + des.width*j, des.y + des.height*i, des.width, des.height}
-                    colliderRect := rl.GetCollisionRec(playerDestination, wallRect)
-                    if colliderRect.width != 0 {
-                        directionSign : f32
-                        playerRelative : rl.Vector2 = {playerDestination.x + playerDestination.width/2 - (wallRect.x + wallRect.width/2), playerDestination.y + playerDestination.height/2 - (wallRect.y + wallRect.height/2)}
-                        if playerRelative.x < 0 {
-                            directionSign = -1
+    if chosenLevel < len(levelData) {
+        for des,idx in levelData[chosenLevel].destinationRect {
+            if strings.contains(levelData[chosenLevel].objectName[idx], "Wall") && !strings.contains(levelData[chosenLevel].objectName[idx], "FakeWall") {
+                for i in 0..<levelData[chosenLevel].renderGrid[idx].x {
+                    for j in 0..<levelData[chosenLevel].renderGrid[idx].y {
+                        wallRect := rl.Rectangle{des.x + des.width*j, des.y + des.height*i, des.width, des.height}
+                        colliderRect := rl.GetCollisionRec(playerDestination, wallRect)
+                        if colliderRect.width != 0 {
+                            directionSign : f32
+                            playerRelative : rl.Vector2 = {playerDestination.x + playerDestination.width/2 - (wallRect.x + wallRect.width/2), playerDestination.y + playerDestination.height/2 - (wallRect.y + wallRect.height/2)}
+                            if playerRelative.x < 0 {
+                                directionSign = -1
+                            }
+                            else if playerRelative.x > 0 {
+                                directionSign = 1
+                            }
+                            directionFix := colliderRect.width*directionSign
+                            playerDestination.x += directionFix
+                            break
                         }
-                        else if playerRelative.x > 0 {
-                            directionSign = 1
-                        }
-                        directionFix := colliderRect.width*directionSign
-                        playerDestination.x += directionFix
-                        break
                     }
                 }
             }
@@ -340,24 +369,26 @@ playerCollisionCheckX :: proc() {
 }
 playerCollisionCheckY :: proc() {
     chosenLevel := getChosenLevel(currentScene)
-    for des,idx in levelData[chosenLevel].destinationRect {
-        if strings.contains(levelData[chosenLevel].objectName[idx], "Wall") && !strings.contains(levelData[chosenLevel].objectName[idx], "FakeWall") {
-            for i in 0..<levelData[chosenLevel].renderGrid[idx].x {
-                for j in 0..<levelData[chosenLevel].renderGrid[idx].y {
-                    wallRect := rl.Rectangle{des.x + des.width*j, des.y + des.height*i, des.width, des.height}
-                    colliderRect := rl.GetCollisionRec(playerDestination, wallRect)
-                    if colliderRect.height != 0 {
-                        directionSign : f32
-                        playerRelative : rl.Vector2 = {playerDestination.x + playerDestination.width/2 - (wallRect.x + wallRect.width/2), playerDestination.y + playerDestination.height/2 - (wallRect.y + wallRect.height/2)}
-                        if playerRelative.y < 0 {
-                            directionSign = -1
+    if chosenLevel < len(levelData) {
+        for des,idx in levelData[chosenLevel].destinationRect {
+            if strings.contains(levelData[chosenLevel].objectName[idx], "Wall") && !strings.contains(levelData[chosenLevel].objectName[idx], "FakeWall") {
+                for i in 0..<levelData[chosenLevel].renderGrid[idx].x {
+                    for j in 0..<levelData[chosenLevel].renderGrid[idx].y {
+                        wallRect := rl.Rectangle{des.x + des.width*j, des.y + des.height*i, des.width, des.height}
+                        colliderRect := rl.GetCollisionRec(playerDestination, wallRect)
+                        if colliderRect.height != 0 {
+                            directionSign : f32
+                            playerRelative : rl.Vector2 = {playerDestination.x + playerDestination.width/2 - (wallRect.x + wallRect.width/2), playerDestination.y + playerDestination.height/2 - (wallRect.y + wallRect.height/2)}
+                            if playerRelative.y < 0 {
+                                directionSign = -1
+                            }
+                            else if playerRelative.y > 0 {
+                                directionSign = 1
+                            }
+                            directionFix := colliderRect.height*directionSign
+                            playerDestination.y += directionFix
+                            break
                         }
-                        else if playerRelative.y > 0 {
-                            directionSign = 1
-                        }
-                        directionFix := colliderRect.height*directionSign
-                        playerDestination.y += directionFix
-                        break
                     }
                 }
             }
@@ -366,45 +397,49 @@ playerCollisionCheckY :: proc() {
 }
 playerCollisionCheckFakeWall :: proc() {
     chosenLevel := getChosenLevel(currentScene)
-    for des,idx in levelData[chosenLevel].destinationRect {
-        if strings.contains(levelData[chosenLevel].objectName[idx], "FakeWall") {
-            playerPoint := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height}
-            wallRect := rl.Rectangle{des.x , des.y , des.width*levelData[chosenLevel].renderGrid[idx].y*1.25,  des.height*levelData[chosenLevel].renderGrid[idx].x*1.25 }
-            if rl.CheckCollisionPointRec(playerPoint, wallRect) {
-                playerUnderFakeWall = true
-                break
-            }
-            else {
-                playerUnderFakeWall = false
+    if chosenLevel < len(levelData) {
+        for des,idx in levelData[chosenLevel].destinationRect {
+            if strings.contains(levelData[chosenLevel].objectName[idx], "FakeWall") {
+                playerPoint := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height}
+                wallRect := rl.Rectangle{des.x , des.y , des.width*levelData[chosenLevel].renderGrid[idx].y*1.25,  des.height*levelData[chosenLevel].renderGrid[idx].x*1.25 }
+                if rl.CheckCollisionPointRec(playerPoint, wallRect) {
+                    playerUnderFakeWall = true
+                    break
+                }
+                else {
+                    playerUnderFakeWall = false
+                }
             }
         }
     }
 }
 trapCollisionCheck :: proc() {
     chosenLevel := getChosenLevel(currentScene)
-    if frameCount%12 == 1 {
-        for des,idx in levelData[chosenLevel].destinationRect {
-            if strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapTile") {
-                playerCentre := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}
-                if rl.CheckCollisionPointRec(playerCentre, des) {
-                    ordered_remove(&levelData[chosenLevel].destinationRect, idx)
-                    ordered_remove(&levelData[chosenLevel].sourceRect, idx)
-                    ordered_remove(&levelData[chosenLevel].objectName, idx)
-                    ordered_remove(&levelData[chosenLevel].renderGrid, idx)
-                    break
+    if chosenLevel < len(levelData) {
+        if frameCount%12 == 1 {
+            for des,idx in levelData[chosenLevel].destinationRect {
+                if strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapTile") {
+                    playerCentre := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}
+                    if rl.CheckCollisionPointRec(playerCentre, des) {
+                        ordered_remove(&levelData[chosenLevel].destinationRect, idx)
+                        ordered_remove(&levelData[chosenLevel].sourceRect, idx)
+                        ordered_remove(&levelData[chosenLevel].objectName, idx)
+                        ordered_remove(&levelData[chosenLevel].renderGrid, idx)
+                        break
+                    }
                 }
             }
         }
-    }
-    else if frameCount%12 == 0 {
-        for des,idx in levelData[chosenLevel].destinationRect {
-            if strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapHole") {
-                playerCentre := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}
-                if rl.CheckCollisionPointRec(playerCentre, des) {
-                    previousScene = currentScene
-                    currentScene = "Game Over"
-                    backgroundColor = rl.BLACK
-                    camera.target = rl.Vector2{f32(SCREEN_WIDTH)/2, f32(SCREEN_HEIGHT)/2}
+        else if frameCount%12 == 0 {
+            for des,idx in levelData[chosenLevel].destinationRect {
+                if strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapHole") {
+                    playerCentre := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}
+                    if rl.CheckCollisionPointRec(playerCentre, des) {
+                        previousScene = currentScene
+                        currentScene = "Game Over"
+                        backgroundColor = rl.BLACK
+                        camera.target = rl.Vector2{f32(SCREEN_WIDTH)/2, f32(SCREEN_HEIGHT)/2}
+                    }
                 }
             }
         }
@@ -412,14 +447,16 @@ trapCollisionCheck :: proc() {
 }
 exitCollisionCheck :: proc() {
     chosenLevel := getChosenLevel(currentScene)
-    for des,idx in levelData[chosenLevel].destinationRect {
-        if strings.contains(levelData[chosenLevel].objectName[idx], "ExitBanner") {
-            playerCentre := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}
-            if rl.CheckCollisionPointRec(playerCentre, des) {
-                levelCompleted = true
-                currentScene = "LevelComplete"
-                camera.target = rl.Vector2{f32(SCREEN_WIDTH)/2, f32(SCREEN_HEIGHT)/2}
-                break
+    if chosenLevel < len(levelData) {
+        for des,idx in levelData[chosenLevel].destinationRect {
+            if strings.contains(levelData[chosenLevel].objectName[idx], "ExitBanner") {
+                playerCentre := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}
+                if rl.CheckCollisionPointRec(playerCentre, des) {
+                    levelCompleted = true
+                    currentScene = "LevelComplete"
+                    camera.target = rl.Vector2{f32(SCREEN_WIDTH)/2, f32(SCREEN_HEIGHT)/2}
+                    break
+                }
             }
         }
     }
@@ -454,36 +491,38 @@ adjustCameraZoom :: proc() {
 laserTrigger :: proc() {
     chosenLevel := getChosenLevel(currentScene)
     //time := rl.GetFrameTime()
-    for des,idx in lasers[chosenLevel].destRect {
-        if frameCount % int(rl.GetMonitorRefreshRate(0)*8) == 1 {
-            if lasers[chosenLevel].laserOn[idx] && strings.contains(lasers[chosenLevel].laserType[idx], "Vertical") {
-                lasers[chosenLevel].laserOn[idx] = false
-                lasers[chosenLevel].srcRect[idx].x = 400
-                lasers[chosenLevel].srcRect[idx].y = 32
+    if chosenLevel < len(levelData) {
+        for des,idx in lasers[chosenLevel].destRect {
+            if frameCount % int(rl.GetMonitorRefreshRate(0)*8) == 1 {
+                if lasers[chosenLevel].laserOn[idx] && strings.contains(lasers[chosenLevel].laserType[idx], "Vertical") {
+                    lasers[chosenLevel].laserOn[idx] = false
+                    lasers[chosenLevel].srcRect[idx].x = 400
+                    lasers[chosenLevel].srcRect[idx].y = 32
+                }
+                if lasers[chosenLevel].laserOn[idx] && !strings.contains(lasers[chosenLevel].laserType[idx], "Vertical") {
+                    lasers[chosenLevel].laserOn[idx] = false
+                    lasers[chosenLevel].srcRect[idx].x = 352
+                    lasers[chosenLevel].srcRect[idx].y = 32
+                }
             }
-            if lasers[chosenLevel].laserOn[idx] && !strings.contains(lasers[chosenLevel].laserType[idx], "Vertical") {
-                lasers[chosenLevel].laserOn[idx] = false
-                lasers[chosenLevel].srcRect[idx].x = 352
-                lasers[chosenLevel].srcRect[idx].y = 32
+            else if frameCount % int(rl.GetMonitorRefreshRate(0)*4) == 0 {
+                if !lasers[chosenLevel].laserOn[idx] && strings.contains(lasers[chosenLevel].laserType[idx], "Vertical") {
+                    lasers[chosenLevel].laserOn[idx] = true
+                    lasers[chosenLevel].srcRect[idx].x = 416
+                    lasers[chosenLevel].srcRect[idx].y = 32
+                }
+                if !lasers[chosenLevel].laserOn[idx] && !strings.contains(lasers[chosenLevel].laserType[idx], "Vertical") {
+                    lasers[chosenLevel].laserOn[idx] = true
+                    lasers[chosenLevel].srcRect[idx].x = 352
+                    lasers[chosenLevel].srcRect[idx].y = 48
+                }
+            } 
+            if lasers[chosenLevel].laserOn[idx] && rl.CheckCollisionPointRec({playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}, lasers[chosenLevel].destRect[idx]) {
+                //fmt.print("alarm triggered! \n")
+                toggleAlarm = true
+                startAlarm = true
+                alarmAlpha = 0
             }
-        }
-        else if frameCount % int(rl.GetMonitorRefreshRate(0)*4) == 0 {
-            if !lasers[chosenLevel].laserOn[idx] && strings.contains(lasers[chosenLevel].laserType[idx], "Vertical") {
-                lasers[chosenLevel].laserOn[idx] = true
-                lasers[chosenLevel].srcRect[idx].x = 416
-                lasers[chosenLevel].srcRect[idx].y = 32
-            }
-            if !lasers[chosenLevel].laserOn[idx] && !strings.contains(lasers[chosenLevel].laserType[idx], "Vertical") {
-                lasers[chosenLevel].laserOn[idx] = true
-                lasers[chosenLevel].srcRect[idx].x = 352
-                lasers[chosenLevel].srcRect[idx].y = 48
-            }
-        } 
-        if lasers[chosenLevel].laserOn[idx] && rl.CheckCollisionPointRec({playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}, lasers[chosenLevel].destRect[idx]) {
-            //fmt.print("alarm triggered! \n")
-            toggleAlarm = true
-            startAlarm = true
-            alarmAlpha = 0
         }
     }
 }
@@ -498,8 +537,31 @@ mainMenuButtonHandler :: proc() {
             }
             else if mainMenuButtons.text[idx] == "Start"{
                 previousScene = currentScene
-                currentScene = "Level1"
-                //initialize level state and player state 
+                nextScene = "Puzzle Select"
+                if level_data,ok := os.read_entire_file("level.json", context.temp_allocator); ok {
+                    if json.unmarshal(level_data, &levelData) != nil {
+                        fmt.print("json unmarshall unsuccessful")
+                        levelData[0].levelName = "Level1"
+                    }
+                    for lvl,idx in levelData {
+                        tempLaserObj : Laser
+                        for des,id in levelData[idx].destinationRect {
+                            if strings.contains(levelData[idx].objectName[id], "Laser") {
+                                append(&tempLaserObj.destRect, des)
+                                append(&tempLaserObj.laserOn, true)
+                                append(&tempLaserObj.laserType, levelData[idx].objectName[id])
+                                append(&tempLaserObj.srcRect, levelData[idx].sourceRect[id])
+                            }
+                        }
+                        tempLaserObj.level = levelData[idx].levelName
+                        append(&lasers, tempLaserObj)
+                    }
+                    fmt.print("laser Object : ", lasers, "\n")
+                }
+                else {
+                    fmt.print("json unmarshall unsuccessful")
+                    levelData[0].levelName = "Level1"
+                }
             }
         }
         else if rl.CheckCollisionPointRec(mousePointer, mainMenuButtons.destRect[idx]) {
@@ -511,6 +573,63 @@ mainMenuButtonHandler :: proc() {
             mainMenuButtons.srcRect[idx].y = 16
         }
     }
+}
+frameCountCooldown :: proc() -> bool {
+    if frameCount % int(rl.GetMonitorRefreshRate(0)*2) == 0 {
+        return true
+    }
+    return false
+}
+puzzleMenuButtonHandler :: proc() {
+    mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
+    for des,idx in PuzzleSelectButtons.destRect {
+        if rl.CheckCollisionPointRec(mp, des) && rl.IsMouseButtonPressed(.LEFT) {
+            PuzzleSelectButtons.srcRect[idx].x = 272
+            PuzzleSelectButtons.srcRect[idx].y = 224
+            currentScene = getLevelFromPuzzle(idx)
+        }
+        else if rl.CheckCollisionPointRec(mp, des) {
+            PuzzleSelectButtons.srcRect[idx].x = 272
+            PuzzleSelectButtons.srcRect[idx].y = 208
+        }
+        else {
+            PuzzleSelectButtons.srcRect[idx].x = 272
+            PuzzleSelectButtons.srcRect[idx].y = 192
+        }
+    }
+}
+getLevelFromPuzzle :: proc(idx : int) -> string {
+    if idx == 0 {
+        return "Level1"
+    }
+    else if idx == 1 {
+        return "Level2"
+    }
+    else if idx == 2 {
+        return "Level3"
+    }
+    else if idx == 3 {
+        return "Level4"
+    }
+    else if idx == 4 {
+        return "Level5"
+    }
+    else if idx == 5 {
+        return "Level6"
+    }
+    else if idx == 6 {
+        return "Level7"
+    }
+    else if idx == 7 {
+        return "Level8"
+    }
+    else if idx == 8 {
+        return "Level9"
+    }
+    else if idx == 9 {
+        return "Level10"
+    }
+    return "Puzzle Menu"
 }
 getChosenLevel :: proc(levelString : string) -> int {
     if levelString == "Level1" {
@@ -524,6 +643,24 @@ getChosenLevel :: proc(levelString : string) -> int {
     }
     else if levelString == "Level4" {
         return 3
+    }
+    else if levelString == "Level5" {
+        return 4
+    }
+    else if levelString == "Level6" {
+        return 5
+    }
+    else if levelString == "Level7" {
+        return 6
+    }
+    else if levelString == "Level8" {
+        return 7
+    }
+    else if levelString == "Level9" {
+        return 8
+    }
+    else if levelString == "Level10" {
+        return 9
     }
     return 0
 }
@@ -587,51 +724,55 @@ drawScene :: proc() {
         }
     }
     if currentScene == "Puzzle Select" {
-        //
+        for des,idx in PuzzleSelectButtons.destRect {
+            rl.DrawTexturePro(textureAtlas, PuzzleSelectButtons.srcRect[idx], des, {0,0}, 0.0, rl.WHITE)
+        }
     }
     if strings.contains(currentScene, "Level") && !levelCompleted {
         //rendering the respective objects 
         chosenLevel := getChosenLevel(currentScene)
-        if rl.IsKeyPressed(.O) {
-            fmt.print("current level data object : ", levelData[chosenLevel], "\n")
-        }
-        for sr,idx in levelData[chosenLevel].sourceRect {
-            if (strings.contains(levelData[chosenLevel].objectName[idx], "Tile") || strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapHole")) && !strings.contains(levelData[chosenLevel].objectName[idx], "FakeWallTopTile"){
-                for i in 0..<i32(levelData[chosenLevel].renderGrid[idx].x) {
-                    for j in 0..<i32(levelData[chosenLevel].renderGrid[idx].y) {
-                        destRect := rl.Rectangle{levelData[chosenLevel].destinationRect[idx].x + levelData[chosenLevel].destinationRect[idx].width*f32(j), levelData[chosenLevel].destinationRect[idx].y + levelData[chosenLevel].destinationRect[idx].height*f32(i), levelData[chosenLevel].destinationRect[idx].width, levelData[chosenLevel].destinationRect[idx].height}
-                        rl.DrawTexturePro(textureAtlas, sr, destRect, {0,0}, 0.0, rl.WHITE)
-                    }
-                }
+        if chosenLevel < len(levelData) {
+            if rl.IsKeyPressed(.O) {
+                fmt.print("current level data object : ", levelData[chosenLevel], "\n")
             }
-        }
-        //a render queue system for the z sorting based on relative coordinates 
-        rl.DrawRectangle(i32(playerDestination.x), i32(playerDestination.y), i32(playerDestination.width), i32(playerDestination.height), rl.RED)
-        for sr,idx in levelData[chosenLevel].sourceRect {
-            if strings.contains(levelData[chosenLevel].objectName[idx], "FakeWallTopTile"){
-                for i in 0..<i32(levelData[chosenLevel].renderGrid[idx].x) {
-                    for j in 0..<i32(levelData[chosenLevel].renderGrid[idx].y) {
-                        destRect := rl.Rectangle{levelData[chosenLevel].destinationRect[idx].x + levelData[chosenLevel].destinationRect[idx].width*f32(j), levelData[chosenLevel].destinationRect[idx].y + levelData[chosenLevel].destinationRect[idx].height*f32(i), levelData[chosenLevel].destinationRect[idx].width, levelData[chosenLevel].destinationRect[idx].height}
-                        if playerUnderFakeWall {
-                            rl.DrawTexturePro(textureAtlas, sr, destRect, {0,0}, 0.0, rl.Color{255,255,255,100})
-                        }
-                        else {
+            for sr,idx in levelData[chosenLevel].sourceRect {
+                if (strings.contains(levelData[chosenLevel].objectName[idx], "Tile") || strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapHole")) && !strings.contains(levelData[chosenLevel].objectName[idx], "FakeWallTopTile"){
+                    for i in 0..<i32(levelData[chosenLevel].renderGrid[idx].x) {
+                        for j in 0..<i32(levelData[chosenLevel].renderGrid[idx].y) {
+                            destRect := rl.Rectangle{levelData[chosenLevel].destinationRect[idx].x + levelData[chosenLevel].destinationRect[idx].width*f32(j), levelData[chosenLevel].destinationRect[idx].y + levelData[chosenLevel].destinationRect[idx].height*f32(i), levelData[chosenLevel].destinationRect[idx].width, levelData[chosenLevel].destinationRect[idx].height}
                             rl.DrawTexturePro(textureAtlas, sr, destRect, {0,0}, 0.0, rl.WHITE)
                         }
                     }
                 }
             }
-        }
-        for sr,idx in levelData[chosenLevel].sourceRect {
-            if !strings.contains(levelData[chosenLevel].objectName[idx], "Tile") && !strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapHole") && !strings.contains(levelData[chosenLevel].objectName[idx], "Laser") {
-                rl.DrawTexturePro(textureAtlas, sr, levelData[chosenLevel].destinationRect[idx], {0,0}, 0.0, rl.WHITE)
+            //a render queue system for the z sorting based on relative coordinates 
+            rl.DrawRectangle(i32(playerDestination.x), i32(playerDestination.y), i32(playerDestination.width), i32(playerDestination.height), rl.RED)
+            for sr,idx in levelData[chosenLevel].sourceRect {
+                if strings.contains(levelData[chosenLevel].objectName[idx], "FakeWallTopTile"){
+                    for i in 0..<i32(levelData[chosenLevel].renderGrid[idx].x) {
+                        for j in 0..<i32(levelData[chosenLevel].renderGrid[idx].y) {
+                            destRect := rl.Rectangle{levelData[chosenLevel].destinationRect[idx].x + levelData[chosenLevel].destinationRect[idx].width*f32(j), levelData[chosenLevel].destinationRect[idx].y + levelData[chosenLevel].destinationRect[idx].height*f32(i), levelData[chosenLevel].destinationRect[idx].width, levelData[chosenLevel].destinationRect[idx].height}
+                            if playerUnderFakeWall {
+                                rl.DrawTexturePro(textureAtlas, sr, destRect, {0,0}, 0.0, rl.Color{255,255,255,100})
+                            }
+                            else {
+                                rl.DrawTexturePro(textureAtlas, sr, destRect, {0,0}, 0.0, rl.WHITE)
+                            }
+                        }
+                    }
+                }
             }
-        }
-        for des,idx in lasers[chosenLevel].destRect {
-            rl.DrawTexturePro(textureAtlas, lasers[chosenLevel].srcRect[idx], des, {0,0}, 0.0, rl.WHITE)
-        }
-        if toggleAlarm {
-            drawAlarmRec()
+            for sr,idx in levelData[chosenLevel].sourceRect {
+                if !strings.contains(levelData[chosenLevel].objectName[idx], "Tile") && !strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapHole") && !strings.contains(levelData[chosenLevel].objectName[idx], "Laser") {
+                    rl.DrawTexturePro(textureAtlas, sr, levelData[chosenLevel].destinationRect[idx], {0,0}, 0.0, rl.WHITE)
+                }
+            }
+            for des,idx in lasers[chosenLevel].destRect {
+                rl.DrawTexturePro(textureAtlas, lasers[chosenLevel].srcRect[idx], des, {0,0}, 0.0, rl.WHITE)
+            }
+            if toggleAlarm {
+                drawAlarmRec()
+            }
         }
         if editorMode {
             for ob,idx in levelEditorObject.destRect {
@@ -738,15 +879,31 @@ init :: proc() {
         {f32(SCREEN_WIDTH)/1.8 - 128, f32(SCREEN_HEIGHT)/1.5 + 20, 128, 64},
         {f32(SCREEN_WIDTH)/1.8 - 128, f32(SCREEN_HEIGHT)/1.5 + 128, 128, 64},
     }
+    puzzleButtonDestRects : [10]rl.Rectangle = {
+        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 20, 192, 64},
+        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 120, 192, 64},
+        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 220, 192, 64},
+        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 320, 192, 64},
+        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 420, 192, 64},
+        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 520, 192, 64},
+        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 620, 192, 64},
+        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 720, 192, 64},
+        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 820, 192, 64},
+        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 920, 192, 64},
+    }
     returnMenuButtonDestRect : rl.Rectangle = {f32(SCREEN_WIDTH) - 128, f32(SCREEN_HEIGHT) - 20, 128, 64}
     nameIndex : int
     returnButtonIndex : int
+    puzzleSelectIndex : int
     for te,idx in textureData.sourceRects {
         if textureData.assetName[idx] == "mainMenuButtons" {
             nameIndex = idx
         }
         else if textureData.assetName[idx] == "ReturnToMenuButton" {
             returnButtonIndex = idx
+        }
+        else if textureData.assetName[idx] == "PuzzleSelectButton" {
+            puzzleSelectIndex = idx
         }
         else if strings.contains(textureData.assetName[idx], "levelEditorInputBox") {
             levelEditorObject.srcRect[0] = te
@@ -768,6 +925,11 @@ init :: proc() {
     append(&mainMenuButtons.text, "Exit")
     for brect,idx in mainMenuButtonDestRects {
         append(&mainMenuButtons.destRect,brect)
+    }
+    for i in 0..<10 {
+        append(&PuzzleSelectButtons.srcRect, textureData.sourceRects[puzzleSelectIndex])
+        append(&PuzzleSelectButtons.text, "Puzzle")
+        append(&PuzzleSelectButtons.destRect, puzzleButtonDestRects[i])
     }
     append(&returnToMenuButton.srcRect, textureData.sourceRects[returnButtonIndex])
     append(&returnToMenuButton.text, "")
@@ -799,11 +961,14 @@ init :: proc() {
             append(&lasers, tempLaserObj)
         }
         fmt.print("laser Object : ", lasers, "\n")
+       
     }
     else {
         fmt.print("json unmarshall unsuccessful")
         levelData[0].levelName = "Level1"
     }
+
+
     frameCount = 0
 }
 
@@ -848,7 +1013,7 @@ main :: proc() {
 }
 
 setTextureDataValues :: proc() { 
-    assetNames :[20]string = {
+    assetNames :[21]string = {
         "levelEditorInputBox",
         "levelEditorTextureBox",
         "mainMenuButtons",
@@ -869,8 +1034,9 @@ setTextureDataValues :: proc() {
         "FakeWallTopTileRightEnd",
         "FakeWallTopTile",
         "ReturnToMenuButton",
+        "PuzzleSelectButton",
     }
-    srcRects : [20]rl.Rectangle = {
+    srcRects : [21]rl.Rectangle = {
         {16,144,80,16},
         {16,16,160,112},
         {208,16,32,16},
@@ -891,6 +1057,7 @@ setTextureDataValues :: proc() {
         {272,128,16,16},
         {256,128,16,16},
         {272,16,32,16},
+        {272,192,96,16},
         
     }
     for an,idx in assetNames {
