@@ -74,6 +74,7 @@ alarmAlpha : f32 = 0.0
 playerUnderFakeWall : bool = false
 previousPlayerPosition : rl.Vector2
 levelCompleted : bool = false
+disablePlayerMovement : bool = false
 Laser :: struct {
     laserOn : [dynamic]bool,
     laserType : [dynamic]string,
@@ -109,12 +110,25 @@ update :: proc() {
             levelObjectEditor()
             levelObjectRemover()
             adjustCameraZoom()
+            if rl.IsKeyPressed(.F5) {
+                saveLevelData()
+            }
         }
         previousPlayerPosition = rl.Vector2{playerDestination.x, playerDestination.y}
-        playerMovementY()
+        if !disablePlayerMovement {
+            playerMovementY()
+        }
         playerCollisionCheckY()
-        playerMovementX()
+        if toggleAlarm {
+            playerCollisionCheckAlarmY()
+        }
+        if !disablePlayerMovement {
+            playerMovementX()
+        }
         playerCollisionCheckX()
+        if toggleAlarm {
+            playerCollisionCheckAlarmX()
+        }
         playerCollisionCheckFakeWall()
         trapCollisionCheck()
         setCameraTarget()
@@ -139,6 +153,11 @@ update :: proc() {
         returnToMenuButtonHandler()
     }
     sceneSwitcher()
+}
+saveLevelData :: proc() {
+    if level_data, err:= json.marshal(levelData, allocator = context.temp_allocator); err == nil {
+        os.write_entire_file("level.json", level_data)
+    } 
 }
 inputEditorTextBoxHandler :: proc() {
     mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
@@ -171,7 +190,7 @@ inputEditorTextBoxHandler :: proc() {
 sceneSwitcher :: proc() {
     if rl.IsKeyPressed(.ESCAPE) {
         currentScene = previousScene
-        backgroundColor = backgroundColorCopy
+        nextScene = ""
     }
 }
 levelObjectRemover :: proc() {
@@ -395,6 +414,54 @@ playerCollisionCheckY :: proc() {
         }
     }
 }
+playerCollisionCheckAlarmY :: proc() {
+    chosenLevel := getChosenLevel(currentScene)
+    if chosenLevel < len(levelData) {
+        for des,idx in levelData[chosenLevel].destinationRect {
+            if strings.contains(levelData[chosenLevel].objectName[idx], "PathBlocker") {
+                wallRect := des
+                colliderRect := rl.GetCollisionRec(playerDestination, wallRect)
+                if colliderRect.height != 0 {
+                    directionSign : f32
+                    playerRelative : rl.Vector2 = {playerDestination.x + playerDestination.width/2 - (wallRect.x + wallRect.width/2), playerDestination.y + playerDestination.height/2 - (wallRect.y + wallRect.height/2)}
+                    if playerRelative.y < 0 {
+                        directionSign = -1
+                    }
+                    else if playerRelative.y > 0 {
+                        directionSign = 1
+                    }
+                    directionFix := colliderRect.height*directionSign
+                    playerDestination.y += directionFix
+                    break
+                }
+            }
+        }
+    }
+}
+playerCollisionCheckAlarmX :: proc() {
+    chosenLevel := getChosenLevel(currentScene)
+    if chosenLevel < len(levelData) {
+        for des,idx in levelData[chosenLevel].destinationRect {
+            if strings.contains(levelData[chosenLevel].objectName[idx], "PathBlocker") {
+                wallRect := des
+                colliderRect := rl.GetCollisionRec(playerDestination, wallRect)
+                if colliderRect.width != 0 {
+                    directionSign : f32
+                    playerRelative : rl.Vector2 = {playerDestination.x + playerDestination.width/2 - (wallRect.x + wallRect.width/2), playerDestination.y + playerDestination.height/2 - (wallRect.y + wallRect.height/2)}
+                    if playerRelative.x < 0 {
+                        directionSign = -1
+                    }
+                    else if playerRelative.x > 0 {
+                        directionSign = 1
+                    }
+                    directionFix := colliderRect.width*directionSign
+                    playerDestination.x += directionFix
+                    break
+                }
+            }
+        }
+    }
+}
 playerCollisionCheckFakeWall :: proc() {
     chosenLevel := getChosenLevel(currentScene)
     if chosenLevel < len(levelData) {
@@ -416,11 +483,12 @@ playerCollisionCheckFakeWall :: proc() {
 trapCollisionCheck :: proc() {
     chosenLevel := getChosenLevel(currentScene)
     if chosenLevel < len(levelData) {
-        if frameCount%12 == 1 {
+        if frameCount % int(rl.GetMonitorRefreshRate(0)*2) == 1 {
             for des,idx in levelData[chosenLevel].destinationRect {
                 if strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapTile") {
                     playerCentre := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}
                     if rl.CheckCollisionPointRec(playerCentre, des) {
+                        disablePlayerMovement = true
                         ordered_remove(&levelData[chosenLevel].destinationRect, idx)
                         ordered_remove(&levelData[chosenLevel].sourceRect, idx)
                         ordered_remove(&levelData[chosenLevel].objectName, idx)
@@ -430,15 +498,18 @@ trapCollisionCheck :: proc() {
                 }
             }
         }
-        else if frameCount%12 == 0 {
+        else if frameCount %  int(rl.GetMonitorRefreshRate(0)*4) == 0 {
             for des,idx in levelData[chosenLevel].destinationRect {
                 if strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapHole") {
                     playerCentre := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}
                     if rl.CheckCollisionPointRec(playerCentre, des) {
                         previousScene = currentScene
                         currentScene = "Game Over"
+                        disablePlayerMovement = false
                         backgroundColor = rl.BLACK
-                        camera.target = rl.Vector2{f32(SCREEN_WIDTH)/2, f32(SCREEN_HEIGHT)/2}
+                        screenWidth := rl.GetScreenWidth()
+                        screenHeight := rl.GetScreenHeight()
+                        camera.target = rl.Vector2{f32(screenWidth)/2, f32(screenHeight)/2}
                     }
                 }
             }
@@ -584,8 +655,12 @@ puzzleMenuButtonHandler :: proc() {
     mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
     for des,idx in PuzzleSelectButtons.destRect {
         if rl.CheckCollisionPointRec(mp, des) && rl.IsMouseButtonPressed(.LEFT) {
+            disablePlayerMovement = false
             PuzzleSelectButtons.srcRect[idx].x = 272
             PuzzleSelectButtons.srcRect[idx].y = 224
+            startingPoint := getStartingPoint(idx)
+            playerDestination.x = startingPoint.x
+            playerDestination.y = startingPoint.y
             currentScene = getLevelFromPuzzle(idx)
         }
         else if rl.CheckCollisionPointRec(mp, des) {
@@ -630,6 +705,18 @@ getLevelFromPuzzle :: proc(idx : int) -> string {
         return "Level10"
     }
     return "Puzzle Menu"
+}
+getStartingPoint :: proc(idx : int) -> rl.Vector2 {
+    res := rl.Vector2{0,0}
+    if idx < len(levelData) {
+        for des,id in levelData[idx].destinationRect {
+            if strings.contains(levelData[idx].objectName[id], "Starting") {
+                res = {des.x, des.y}
+                break
+            }
+        }
+    }
+    return res
 }
 getChosenLevel :: proc(levelString : string) -> int {
     if levelString == "Level1" {
@@ -698,6 +785,7 @@ returnToMenuButtonHandler :: proc() {
             returnToMenuButton.srcRect[idx].x = 336
             returnToMenuButton.srcRect[idx].y = 160
             currentScene = "Main Menu"
+            nextScene = ""
             levelCompleted = false
             playerDestination.x = 0
             playerDestination.y = 0
@@ -763,7 +851,7 @@ drawScene :: proc() {
                 }
             }
             for sr,idx in levelData[chosenLevel].sourceRect {
-                if !strings.contains(levelData[chosenLevel].objectName[idx], "Tile") && !strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapHole") && !strings.contains(levelData[chosenLevel].objectName[idx], "Laser") {
+                if !strings.contains(levelData[chosenLevel].objectName[idx], "Tile") && !strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapHole") && !strings.contains(levelData[chosenLevel].objectName[idx], "Laser") && !strings.contains(levelData[chosenLevel].objectName[idx], "PathBlocker"){
                     rl.DrawTexturePro(textureAtlas, sr, levelData[chosenLevel].destinationRect[idx], {0,0}, 0.0, rl.WHITE)
                 }
             }
@@ -772,6 +860,11 @@ drawScene :: proc() {
             }
             if toggleAlarm {
                 drawAlarmRec()
+                for sr,idx in levelData[chosenLevel].sourceRect {
+                    if strings.contains(levelData[chosenLevel].objectName[idx], "PathBlocker"){
+                        rl.DrawTexturePro(textureAtlas, sr, levelData[chosenLevel].destinationRect[idx], {0,0}, 0.0, rl.WHITE)
+                    }
+                }
             }
         }
         if editorMode {
@@ -880,16 +973,16 @@ init :: proc() {
         {f32(SCREEN_WIDTH)/1.8 - 128, f32(SCREEN_HEIGHT)/1.5 + 128, 128, 64},
     }
     puzzleButtonDestRects : [10]rl.Rectangle = {
-        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 20, 192, 64},
-        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 120, 192, 64},
-        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 220, 192, 64},
-        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 320, 192, 64},
-        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 420, 192, 64},
-        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 520, 192, 64},
-        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 620, 192, 64},
-        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 720, 192, 64},
-        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 820, 192, 64},
-        {f32(SCREEN_WIDTH)/2 - 128, f32(SCREEN_HEIGHT)/8 + 920, 192, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 20, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 100, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 180, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 260, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 340, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 420, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 500, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 580, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 660, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 740, 384, 64},
     }
     returnMenuButtonDestRect : rl.Rectangle = {f32(SCREEN_WIDTH) - 128, f32(SCREEN_HEIGHT) - 20, 128, 64}
     nameIndex : int
@@ -1013,7 +1106,7 @@ main :: proc() {
 }
 
 setTextureDataValues :: proc() { 
-    assetNames :[21]string = {
+    assetNames :[23]string = {
         "levelEditorInputBox",
         "levelEditorTextureBox",
         "mainMenuButtons",
@@ -1035,8 +1128,10 @@ setTextureDataValues :: proc() {
         "FakeWallTopTile",
         "ReturnToMenuButton",
         "PuzzleSelectButton",
+        "PathBlocker",
+        "StartingFloorTile",
     }
-    srcRects : [21]rl.Rectangle = {
+    srcRects : [23]rl.Rectangle = {
         {16,144,80,16},
         {16,16,160,112},
         {208,16,32,16},
@@ -1058,6 +1153,8 @@ setTextureDataValues :: proc() {
         {256,128,16,16},
         {272,16,32,16},
         {272,192,96,16},
+        {368,80,16,16},
+        {208,48,32,32},
         
     }
     for an,idx in assetNames {
