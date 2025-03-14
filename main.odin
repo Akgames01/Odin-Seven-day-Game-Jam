@@ -76,7 +76,7 @@ previousPlayerPosition : rl.Vector2
 levelCompleted : bool = false
 disablePlayerMovement : bool = false
 pillarFrame : int = 0
-pillarSpeed : int = 300
+pillarSpeed : int = 200
 Laser :: struct {
     laserOn : [dynamic]bool,
     laserType : [dynamic]string,
@@ -527,19 +527,24 @@ pillarAnimationUpdateAndMovement :: proc() {
     chosenLevel := getChosenLevel(currentScene)
     for des,idx in levelData[chosenLevel].destinationRect {
         if strings.contains(levelData[chosenLevel].objectName[idx], "RollingPillar") {
-            if frameCount % int(rl.GetMonitorRefreshRate(0)/6) == 1 {
+            if frameCount % int(rl.GetMonitorRefreshRate(0)/10) == 1 {
                 pillarFrame += 1
             }
-            if pillarFrame > 4 {
-                pillarFrame = 1
+            if pillarFrame > 5 {
+                pillarFrame = 0
             }
             if levelData[chosenLevel].sourceRect[idx].x > 672 {
                 levelData[chosenLevel].sourceRect[idx].x = 480
             }
-            else if levelData[chosenLevel].sourceRect[idx].x <= 672 && levelData[chosenLevel].sourceRect[idx].x >= 480{
-                levelData[chosenLevel].sourceRect[idx].x += levelData[chosenLevel].sourceRect[idx].width * f32(pillarFrame)
+            else if levelData[chosenLevel].sourceRect[idx].x <= 672 {
+                levelData[chosenLevel].sourceRect[idx].x = 480 + levelData[chosenLevel].sourceRect[idx].width * f32(pillarFrame)
             }
-            pillarMove(idx)
+            if strings.contains(levelData[chosenLevel].objectName[idx], "RollingPillarVertical") {
+                pillarMoveVertical(idx)
+            }
+            else {
+                pillarMove(idx)
+            }
         }
     }
 }
@@ -551,6 +556,16 @@ pillarMove :: proc(idx : int) {
     }
     if frameCount % int(rl.GetMonitorRefreshRate(0)*2) > int(rl.GetMonitorRefreshRate(0)) {
         levelData[chosenLevel].destinationRect[idx].x -= f32(pillarSpeed) * time
+    }
+}
+pillarMoveVertical :: proc(idx : int) {
+    chosenLevel := getChosenLevel(currentScene)
+    time := rl.GetFrameTime()
+    if frameCount % int(rl.GetMonitorRefreshRate(0)*2) < int(rl.GetMonitorRefreshRate(0)) {
+        levelData[chosenLevel].destinationRect[idx].y += f32(pillarSpeed) * time
+    }
+    if frameCount % int(rl.GetMonitorRefreshRate(0)*2) > int(rl.GetMonitorRefreshRate(0)) {
+        levelData[chosenLevel].destinationRect[idx].y -= f32(pillarSpeed) * time
     }
 }
 pillarCollisionCheck :: proc() {
@@ -1172,7 +1187,7 @@ main :: proc() {
 }
 
 setTextureDataValues :: proc() { 
-    assetNames :[24]string = {
+    assetNames :[25]string = {
         "levelEditorInputBox",
         "levelEditorTextureBox",
         "mainMenuButtons",
@@ -1197,8 +1212,9 @@ setTextureDataValues :: proc() {
         "PathBlocker",
         "StartingFloorTile",
         "RollingPillar",
+        "RollingPillarVertical",
     }
-    srcRects : [24]rl.Rectangle = {
+    srcRects : [25]rl.Rectangle = {
         {16,144,80,16},
         {16,16,160,112},
         {208,16,32,16},
@@ -1222,6 +1238,7 @@ setTextureDataValues :: proc() {
         {272,192,96,16},
         {368,80,16,16},
         {208,48,32,32},
+        {480,0,32,32},
         {480,0,32,32},
         
     }
