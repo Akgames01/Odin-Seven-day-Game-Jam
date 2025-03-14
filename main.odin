@@ -93,10 +93,16 @@ update :: proc() {
             currentScene = nextScene
         }
     }
-    if currentScene == "Puzzle Select" {
+    else if currentScene == "Puzzle Select" {
         puzzleMenuButtonHandler()
     }
-    if strings.contains(currentScene, "Level") {
+    else if strings.contains(currentScene, "LevelComplete") {
+        returnToMenuButtonHandler()
+    }
+    else if currentScene == "Game Over" {
+        returnToMenuButtonHandler()
+    }
+    else if strings.contains(currentScene, "Level") {
         if rl.IsKeyPressed(.F2) {
             editorMode = !editorMode
         }
@@ -146,12 +152,7 @@ update :: proc() {
         }
         exitCollisionCheck()
     }
-    if strings.contains(currentScene, "LevelComplete") {
-        returnToMenuButtonHandler()
-    }
-    if currentScene == "Game Over" {
-        returnToMenuButtonHandler()
-    }
+    
     sceneSwitcher()
 }
 saveLevelData :: proc() {
@@ -467,8 +468,8 @@ playerCollisionCheckFakeWall :: proc() {
     if chosenLevel < len(levelData) {
         for des,idx in levelData[chosenLevel].destinationRect {
             if strings.contains(levelData[chosenLevel].objectName[idx], "FakeWall") {
-                playerPoint := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height}
-                wallRect := rl.Rectangle{des.x , des.y , des.width*levelData[chosenLevel].renderGrid[idx].y*1.25,  des.height*levelData[chosenLevel].renderGrid[idx].x*1.25 }
+                playerPoint := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}
+                wallRect := rl.Rectangle{des.x , des.y , des.width*levelData[chosenLevel].renderGrid[idx].y,  des.height*levelData[chosenLevel].renderGrid[idx].x }
                 if rl.CheckCollisionPointRec(playerPoint, wallRect) {
                     playerUnderFakeWall = true
                     break
@@ -524,8 +525,9 @@ exitCollisionCheck :: proc() {
                 playerCentre := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}
                 if rl.CheckCollisionPointRec(playerCentre, des) {
                     levelCompleted = true
-                    currentScene = "LevelComplete"
                     camera.target = rl.Vector2{f32(SCREEN_WIDTH)/2, f32(SCREEN_HEIGHT)/2}
+                    currentScene = "LevelComplete"
+                    //setDefaultCameraOffset()
                     break
                 }
             }
@@ -814,6 +816,8 @@ drawScene :: proc() {
     if currentScene == "Puzzle Select" {
         for des,idx in PuzzleSelectButtons.destRect {
             rl.DrawTexturePro(textureAtlas, PuzzleSelectButtons.srcRect[idx], des, {0,0}, 0.0, rl.WHITE)
+            text := strings.clone_to_cstring(PuzzleSelectButtons.text[idx])
+            rl.DrawText(text, i32(des.x + des.width/4), i32(des.y + des.height/4), 50, rl.WHITE)
         }
     }
     if strings.contains(currentScene, "Level") && !levelCompleted {
@@ -836,7 +840,7 @@ drawScene :: proc() {
             //a render queue system for the z sorting based on relative coordinates 
             rl.DrawRectangle(i32(playerDestination.x), i32(playerDestination.y), i32(playerDestination.width), i32(playerDestination.height), rl.RED)
             for sr,idx in levelData[chosenLevel].sourceRect {
-                if strings.contains(levelData[chosenLevel].objectName[idx], "FakeWallTopTile"){
+                if strings.contains(levelData[chosenLevel].objectName[idx], "FakeWallTopTile") {
                     for i in 0..<i32(levelData[chosenLevel].renderGrid[idx].x) {
                         for j in 0..<i32(levelData[chosenLevel].renderGrid[idx].y) {
                             destRect := rl.Rectangle{levelData[chosenLevel].destinationRect[idx].x + levelData[chosenLevel].destinationRect[idx].width*f32(j), levelData[chosenLevel].destinationRect[idx].y + levelData[chosenLevel].destinationRect[idx].height*f32(i), levelData[chosenLevel].destinationRect[idx].width, levelData[chosenLevel].destinationRect[idx].height}
@@ -855,8 +859,15 @@ drawScene :: proc() {
                     rl.DrawTexturePro(textureAtlas, sr, levelData[chosenLevel].destinationRect[idx], {0,0}, 0.0, rl.WHITE)
                 }
             }
-            for des,idx in lasers[chosenLevel].destRect {
-                rl.DrawTexturePro(textureAtlas, lasers[chosenLevel].srcRect[idx], des, {0,0}, 0.0, rl.WHITE)
+            if !editorMode {
+                for des,idx in lasers[chosenLevel].destRect {
+                    if toggleAlarm {
+                        if rl.IsKeyPressed(.Y) {
+                            fmt.print("source rectangle of laser : ", lasers[chosenLevel].srcRect[idx])
+                        }
+                    }
+                    rl.DrawTexturePro(textureAtlas, lasers[chosenLevel].srcRect[idx], des, {0,0}, 0.0, rl.WHITE)
+                }
             }
             if toggleAlarm {
                 drawAlarmRec()
@@ -1021,7 +1032,9 @@ init :: proc() {
     }
     for i in 0..<10 {
         append(&PuzzleSelectButtons.srcRect, textureData.sourceRects[puzzleSelectIndex])
-        append(&PuzzleSelectButtons.text, "Puzzle")
+        puzzle := "Puzzle"
+        text := fmt.tprint(puzzle,i)
+        append(&PuzzleSelectButtons.text, text)
         append(&PuzzleSelectButtons.destRect, puzzleButtonDestRects[i])
     }
     append(&returnToMenuButton.srcRect, textureData.sourceRects[returnButtonIndex])
