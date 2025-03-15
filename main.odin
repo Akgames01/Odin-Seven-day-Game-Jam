@@ -523,7 +523,7 @@ pillarAnimationUpdateAndMovement :: proc() {
     if chosenLevel < len(levelData) {
         for des,idx in levelData[chosenLevel].destinationRect {
             if strings.contains(levelData[chosenLevel].objectName[idx], "RollingPillar") {
-                if frameCount % int(rl.GetMonitorRefreshRate(0)/15) == 1 {
+                if frameCount % int(rl.GetMonitorRefreshRate(0)/15) == 0 {
                     pillarFrame += 1
                 }
                 if pillarFrame > 5 {
@@ -1161,7 +1161,7 @@ init :: proc() {
     for i in 0..<10 {
         append(&PuzzleSelectButtons.srcRect, textureData.sourceRects[puzzleSelectIndex])
         puzzle := "Puzzle"
-        text := fmt.tprint(puzzle,i)
+        text := fmt.tprint(puzzle,i+1)
         append(&PuzzleSelectButtons.text, text)
         append(&PuzzleSelectButtons.destRect, puzzleButtonDestRects[i])
     }
