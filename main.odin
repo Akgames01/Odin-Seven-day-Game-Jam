@@ -49,6 +49,7 @@ mainMenuButtons : Button
 PuzzleSelectButtons : Button
 returnToMenuButton : Button
 restartLevelButton : Button
+creditsButton : Button
 levelEditorObject : LevelEdit
 inputTextBoxEnable : bool
 inputTextBuilder : strings.Builder
@@ -111,11 +112,18 @@ update :: proc() {
         }
     }
     else if currentScene == "Puzzle Select" {
+        if rl.IsKeyPressed(.ESCAPE) {
+            currentScene = "Main Menu"
+            nextScene = ""
+        }
         puzzleMenuButtonHandler()
     }
     else if strings.contains(currentScene, "LevelComplete") {
         returnToMenuButtonHandler()
         restartLevelButtonHandler()
+        if previousScene == "Level5" {
+            creditsButtonHandler()
+        }
     }
     else if currentScene == "Game Over" {
         returnToMenuButtonHandler()
@@ -168,11 +176,11 @@ update :: proc() {
         }
         setCameraTarget()
         laserTrigger()
-        if rl.IsKeyPressed(.P) {
-            toggleAlarm = !toggleAlarm
-            startAlarm = !startAlarm
-            alarmAlpha = 0
-        }
+        // if rl.IsKeyPressed(.P) {
+        //     toggleAlarm = !toggleAlarm
+        //     startAlarm = !startAlarm
+        //     alarmAlpha = 0
+        // }
         if startAlarm {
             startFade()
         }
@@ -187,8 +195,34 @@ update :: proc() {
         }
         pauseMenuHandler()
     }
+    else if strings.contains(currentScene, "Credits") {
+        returnToMenuButtonHandler()
+    }
     
     //sceneSwitcher()
+}
+creditsButtonHandler :: proc() {
+    mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
+    for des,idx in creditsButton.destRect {
+        creditsButton.destRect[idx].x = playerDestination.x - creditsButton.destRect[idx].width + 700
+        creditsButton.destRect[idx].y = playerDestination.y - creditsButton.destRect[idx].height + 300
+        if rl.CheckCollisionPointRec(mp, des) && rl.IsMouseButtonPressed(.LEFT) {
+            creditsButton.srcRect[idx].x = 272
+            creditsButton.srcRect[idx].y = 16
+            currentScene = "Credits"
+            nextScene = ""
+            levelCompleted = false
+            disablePlayerMovement = false
+        }
+        else if rl.CheckCollisionPointRec(mp, des) {
+            creditsButton.srcRect[idx].x = 208
+            creditsButton.srcRect[idx].y = 16
+        }
+        else {
+            creditsButton.srcRect[idx].x = 208
+            creditsButton.srcRect[idx].y = 16
+        }
+    }
 }
 pauseMenuHandler :: proc() {
     mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
@@ -207,6 +241,8 @@ pauseMenuHandler :: proc() {
             playerDestination.y = 0
             setDefaultCameraOffsetOrigin()
             pauseMenuEnabled = false
+            startAlarm = false
+            toggleAlarm = false
         }
         else if rl.CheckCollisionPointRec(mp, des) {
             returnToMenuButton.srcRect[idx].x = 304
@@ -234,6 +270,8 @@ pauseMenuHandler :: proc() {
             playerDestination.y = startingPoint.y
             setDefaultCameraOffsetOrigin()
             pauseMenuEnabled = false
+            startAlarm = false
+            toggleAlarm = false
         }
         else if rl.CheckCollisionPointRec(mp, des) {
             restartLevelButton.srcRect[idx].x = 304
@@ -1012,6 +1050,8 @@ returnToMenuButtonHandler :: proc() {
             playerDestination.x = 0
             playerDestination.y = 0
             setDefaultCameraOffsetOrigin()
+            toggleAlarm = false
+            startAlarm = false
         }
         else if rl.CheckCollisionPointRec(mp, des) {
             returnToMenuButton.srcRect[idx].x = 304
@@ -1029,7 +1069,7 @@ restartLevelButtonHandler :: proc () {
     startingPoint := getStartingPoint(chosenLevel)
     for des,idx in restartLevelButton.destRect {
         restartLevelButton.destRect[idx].x = playerDestination.x - restartLevelButton.destRect[idx].width + 400
-        restartLevelButton.destRect[idx].y = playerDestination.y - restartLevelButton.destRect[idx].height + 400
+        restartLevelButton.destRect[idx].y = playerDestination.y - restartLevelButton.destRect[idx].height + 450
         if rl.CheckCollisionPointRec(mp, des) && rl.IsMouseButtonPressed(.LEFT) {
             restartLevelButton.srcRect[idx].x = 336
             restartLevelButton.srcRect[idx].y = 176
@@ -1040,6 +1080,8 @@ restartLevelButtonHandler :: proc () {
             playerDestination.x = startingPoint.x
             playerDestination.y = startingPoint.y
             setDefaultCameraOffsetOrigin()
+            toggleAlarm = false
+            startAlarm = false
         }
         else if rl.CheckCollisionPointRec(mp, des) {
             restartLevelButton.srcRect[idx].x = 304
@@ -1051,6 +1093,7 @@ restartLevelButtonHandler :: proc () {
         }
     }
 }
+
 puzzleSelectButtonAdjustLocation :: proc () {
     for &des,idx in PuzzleSelectButtons.destRect {
         des.x = playerDestination.x - 300 - des.width
@@ -1075,6 +1118,9 @@ drawScene :: proc() {
             rl.DrawText(text, i32(des.x + des.width/4), i32(des.y + des.height/4), 50, rl.WHITE)
             delete(text)
         }
+
+        destination := rl.Vector2{f32(SCREEN_WIDTH)/1.5, f32(SCREEN_HEIGHT)- 150}
+        rl.DrawText("press esc to return to main menu", i32(destination.x), i32(destination.y), 25, rl.WHITE)
     }
     if strings.contains(currentScene, "Level") && !levelCompleted {
         //rendering the respective objects 
@@ -1125,6 +1171,13 @@ drawScene :: proc() {
             for sr,idx in levelData[chosenLevel].sourceRect {
                 if !strings.contains(levelData[chosenLevel].objectName[idx], "Tile") && !strings.contains(levelData[chosenLevel].objectName[idx], "FloorTrapHole") && !strings.contains(levelData[chosenLevel].objectName[idx], "Pillar") && !strings.contains(levelData[chosenLevel].objectName[idx], "Laser") && !strings.contains(levelData[chosenLevel].objectName[idx], "PathBlocker"){
                     rl.DrawTexturePro(textureAtlas, sr, levelData[chosenLevel].destinationRect[idx], {0,0}, 0.0, rl.WHITE)
+                }
+            }
+            if editorMode {
+                for sr,idx in levelData[chosenLevel].sourceRect {
+                    if strings.contains(levelData[chosenLevel].objectName[idx], "Pillar") {
+                        rl.DrawTexturePro(textureAtlas, sr, levelData[chosenLevel].destinationRect[idx], {0,0}, 0.0, rl.WHITE)
+                    }
                 }
             }
             if !editorMode {
@@ -1240,6 +1293,15 @@ drawScene :: proc() {
         for des,idx in restartLevelButton.destRect {
             rl.DrawTexturePro(textureAtlas, restartLevelButton.srcRect[idx], des, {0,0}, 0.0, rl.WHITE)
         }
+        if previousScene == "Level5" {
+            for des,idx in creditsButton.destRect {
+                rl.DrawTexturePro(textureAtlas, creditsButton.srcRect[idx], des, {0,0}, 0.0, rl.WHITE)
+                text := strings.clone_to_cstring(creditsButton.text[idx])
+                rl.DrawText(text, i32(des.x + des.width/9),i32(des.y + des.height/3), 25, rl.WHITE)
+                delete(text)
+            }
+        }
+
     }
     if currentScene == "Game Over" {
         rl.DrawText("Game Over!",  i32(playerDestination.x - 200),i32(playerDestination.y - 350), 50, rl.WHITE)
@@ -1251,6 +1313,15 @@ drawScene :: proc() {
         }
         for des,idx in restartLevelButton.destRect {
             rl.DrawTexturePro(textureAtlas, restartLevelButton.srcRect[idx], des, {0,0}, 0.0, rl.WHITE)
+        }
+    }
+    if currentScene == "Credits" {
+        rl.DrawText("Thanks for Playing!",  i32(playerDestination.x - 200),i32(playerDestination.y - 350), 50, rl.WHITE)
+        for des,idx in returnToMenuButton.destRect {
+            rl.DrawTexturePro(textureAtlas, returnToMenuButton.srcRect[idx], des, {0,0}, 0.0, rl.WHITE)
+            text := strings.clone_to_cstring(returnToMenuButton.text[idx])
+            rl.DrawText(text, i32(des.x + des.width/9),i32(des.y + des.height/3), 25, rl.WHITE)
+            delete(text)
         }
     }
 }
@@ -1279,24 +1350,21 @@ init :: proc() {
         {f32(SCREEN_WIDTH)/1.8 - 128, f32(SCREEN_HEIGHT)/1.5 + 20, 128, 64},
         {f32(SCREEN_WIDTH)/1.8 - 128, f32(SCREEN_HEIGHT)/1.5 + 128, 128, 64},
     }
-    puzzleButtonDestRects : [10]rl.Rectangle = {
+    puzzleButtonDestRects : [5]rl.Rectangle = {
         {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 20, 384, 64},
         {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 100, 384, 64},
         {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 180, 384, 64},
         {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 260, 384, 64},
         {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 340, 384, 64},
-        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 420, 384, 64},
-        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 500, 384, 64},
-        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 580, 384, 64},
-        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 660, 384, 64},
-        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 740, 384, 64},
     }
     returnMenuButtonDestRect : rl.Rectangle = {f32(SCREEN_WIDTH) - 128, f32(SCREEN_HEIGHT) - 20, 256, 128}
     restartButtonDestRect : rl.Rectangle = {f32(SCREEN_WIDTH) - 128, f32(SCREEN_HEIGHT) + 220, 256, 128}
+    creditsButtonDestRect : rl.Rectangle = {f32(SCREEN_WIDTH) + 128, f32(SCREEN_HEIGHT) + 220, 256, 128}
     nameIndex : int
     returnButtonIndex : int
     puzzleSelectIndex : int
     restartButtonIndex : int
+    creditsButtonIndex : int
     for te,idx in textureData.sourceRects {
         if textureData.assetName[idx] == "mainMenuButtons" {
             nameIndex = idx
@@ -1306,6 +1374,9 @@ init :: proc() {
         }
         else if textureData.assetName[idx] == "RestartLevelButton" {
             restartButtonIndex = idx
+        }
+        else if textureData.assetName[idx] == "CreditsButton" {
+            creditsButtonIndex = idx
         }
         else if textureData.assetName[idx] == "PuzzleSelectButton" {
             puzzleSelectIndex = idx
@@ -1324,6 +1395,7 @@ init :: proc() {
             append(&levelEditorAsset.destinationRect, rl.Rectangle{0,0,textureData.sourceRects[idx].width, textureData.sourceRects[idx].height})
         }
     }
+    
     append(&mainMenuButtons.srcRect, textureData.sourceRects[nameIndex])
     append(&mainMenuButtons.srcRect, textureData.sourceRects[nameIndex])
     append(&mainMenuButtons.text, "Start")
@@ -1331,7 +1403,7 @@ init :: proc() {
     for brect,idx in mainMenuButtonDestRects {
         append(&mainMenuButtons.destRect,brect)
     }
-    for i in 0..<10 {
+    for i in 0..<5 {
         append(&PuzzleSelectButtons.srcRect, textureData.sourceRects[puzzleSelectIndex])
         puzzle := "Puzzle"
         text := fmt.tprint(puzzle,i+1)
@@ -1345,6 +1417,9 @@ init :: proc() {
     append(&restartLevelButton.text, "")
     append(&restartLevelButton.destRect, restartButtonDestRect)
     // fmt.print("main menu buttons object : ", mainMenuButtons, "\n")
+    append(&creditsButton.destRect,creditsButtonDestRect)
+    append(&creditsButton.text,"End Game")
+    append(&creditsButton.srcRect, textureData.sourceRects[creditsButtonIndex])
     editorMode = false
     playerSrc = {0,0,0,0}
     playerDestination = {0,0,32,32}
@@ -1440,7 +1515,7 @@ main :: proc() {
 }
 
 setTextureDataValues :: proc() { 
-    assetNames :[26]string = {
+    assetNames :[27]string = {
         "levelEditorInputBox",
         "levelEditorTextureBox",
         "mainMenuButtons",
@@ -1466,9 +1541,10 @@ setTextureDataValues :: proc() {
         "StartingFloorTile",
         "RollingPillar",
         "RollingPillarVertical",
-        "RestartLevelButton"
+        "RestartLevelButton",
+        "CreditsButton"
     }
-    srcRects : [26]rl.Rectangle = {
+    srcRects : [27]rl.Rectangle = {
         {16,144,80,16},
         {16,16,160,112},
         {208,16,32,16},
@@ -1495,6 +1571,7 @@ setTextureDataValues :: proc() {
         {480,0,32,32},
         {480,0,32,32},
         {272,176,32,16},
+        {208,16,32,16},
         
     }
     for an,idx in assetNames {
