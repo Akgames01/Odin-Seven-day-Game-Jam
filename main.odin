@@ -1330,7 +1330,7 @@ render :: proc() {
     rl.BeginMode2D(camera)
     rl.ClearBackground(backgroundColor)
     drawScene()
-    rl.DrawFPS(i32(playerDestination.x + 500), i32(playerDestination.y - 400))
+    //rl.DrawFPS(i32(playerDestination.x + 500), i32(playerDestination.y - 400))
     rl.EndMode2D()
     rl.EndDrawing()
 }
