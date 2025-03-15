@@ -1336,7 +1336,7 @@ render :: proc() {
 }
 
 init :: proc() {
-    rl.InitWindow(i32(SCREEN_WIDTH), i32(SCREEN_HEIGHT), "Puzzle Game")
+    rl.InitWindow(i32(SCREEN_WIDTH), i32(SCREEN_HEIGHT), "The Escape")
     rl.InitAudioDevice()
     rl.SetConfigFlags({.VSYNC_HINT})
     rl.SetTargetFPS(rl.GetMonitorRefreshRate(0))
