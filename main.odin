@@ -81,6 +81,7 @@ pillarFrame : int = 0
 pillarSpeed : int = 200
 pauseMenuRectangle : rl.Rectangle
 pauseMenuEnabled : bool = false
+enableGrid : bool = false
 Laser :: struct {
     laserOn : [dynamic]bool,
     laserType : [dynamic]string,
@@ -131,10 +132,13 @@ update :: proc() {
     }
     else if strings.contains(currentScene, "Level") && !pauseMenuEnabled {
         if rl.IsKeyPressed(.ESCAPE) {
-            pauseMenuEnabled = true
             pauseMenuRectangle.width = 320
             pauseMenuRectangle.height = 320
             pauseMenuRectangle = {playerDestination.x + playerDestination.width/2 - pauseMenuRectangle.width/2, playerDestination.y + playerDestination.height/2 - pauseMenuRectangle.height/2, 320,320}
+            pauseMenuEnabled = true
+        }
+        if rl.IsKeyPressed(.G) {
+            enableGrid = !enableGrid
         }
         if rl.IsKeyPressed(.F2) {
             editorMode = !editorMode
@@ -348,9 +352,13 @@ levelObjectEditor :: proc() {
         }
         if levelObjectSelected {
             mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
-            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].x = mp.x
-            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].y = mp.y
+            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].x = f32(i32(mp.x/32)*32)
+            levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].y = f32(i32(mp.y/32)*32)
             if rl.IsKeyDown(.M) && rl.IsMouseButtonPressed(.LEFT) {
+                // adjustedX := f32(i32(levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].x/32)*32)
+                // adjustedY := f32(i32(levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].y/32)*32)
+                // levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].x = adjustedX
+                // levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].y = adjustedY
                 levelObjectSelected = false
                 // remX := i32(levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].x)%16
                 // remY := i32(levelData[chosenLevel].destinationRect[levelObjectSelectedIndex].y)%16
@@ -431,8 +439,8 @@ editorObjectSelectionHandler :: proc() {
     }
     if editorObjectSelected {
         mp := rl.GetScreenToWorld2D(rl.GetMousePosition(), camera)
-        editorObjectSelectedDestRect.x = mp.x
-        editorObjectSelectedDestRect.y = mp.y
+        editorObjectSelectedDestRect.x = f32(i32(mp.x/32)*32)
+        editorObjectSelectedDestRect.y = f32(i32(mp.y/32)*32)
         selectedLevel := getChosenLevel(currentScene)
         if selectedLevel < len(levelData) {
             if rl.IsKeyDown(.M) && rl.IsMouseButtonPressed(.LEFT) {
@@ -690,11 +698,21 @@ pillarMove :: proc(idx : int) {
 pillarMoveVertical :: proc(idx : int) {
     chosenLevel := getChosenLevel(currentScene)
     time := rl.GetFrameTime()
-    if frameCount % int(rl.GetMonitorRefreshRate(0)*2) < int(rl.GetMonitorRefreshRate(0)) {
+    if pillars[chosenLevel].pillarDirection[idx] == 0 {
+        pillars[chosenLevel].pillarDistanceCovered[idx] += int(f32(pillars[chosenLevel].pillarSpeed[idx]) * time)
         pillars[chosenLevel].destRect[idx].y += f32(pillars[chosenLevel].pillarSpeed[idx]) * time
+        if pillars[chosenLevel].pillarDistanceCovered[idx] == pillars[chosenLevel].pillarFlipDistance[idx] {
+            pillars[chosenLevel].pillarDirection[idx] = 1
+            pillars[chosenLevel].pillarDistanceCovered[idx] = 0
+        }
     }
-    if frameCount % int(rl.GetMonitorRefreshRate(0)*2) > int(rl.GetMonitorRefreshRate(0)) {
+    else if pillars[chosenLevel].pillarDirection[idx] == 1 {
+        pillars[chosenLevel].pillarDistanceCovered[idx] += int(f32(pillars[chosenLevel].pillarSpeed[idx]) * time)
         pillars[chosenLevel].destRect[idx].y -= f32(pillars[chosenLevel].pillarSpeed[idx]) * time
+        if pillars[chosenLevel].pillarDistanceCovered[idx] == pillars[chosenLevel].pillarFlipDistance[idx] {
+            pillars[chosenLevel].pillarDirection[idx] = 0
+            pillars[chosenLevel].pillarDistanceCovered[idx] = 0
+        }
     }
 }
 pillarCollisionCheck :: proc() {
@@ -702,7 +720,7 @@ pillarCollisionCheck :: proc() {
     if chosenLevel < len(pillars) {
         for des,idx in pillars[chosenLevel].destRect {
             playerCentre := rl.Vector2{playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}
-            pillarHitBox := rl.Rectangle{des.x + des.width/4,des.y, des.width/2,des.height}
+            pillarHitBox := rl.Rectangle{des.x + des.width/3.5,des.y + des.height/8, des.width/2.5,des.height/1.25}
             if rl.CheckCollisionPointRec(playerCentre, pillarHitBox) {
                 previousScene = currentScene
                 currentScene = "Game Over"
@@ -830,9 +848,11 @@ laserTrigger :: proc() {
             } 
             if lasers[chosenLevel].laserOn[idx] && rl.CheckCollisionPointRec({playerDestination.x + playerDestination.width/2, playerDestination.y + playerDestination.height/2}, lasers[chosenLevel].destRect[idx]) {
                 //fmt.print("alarm triggered! \n")
-                toggleAlarm = true
-                startAlarm = true
-                alarmAlpha = 0
+                if toggleAlarm != true {
+                    toggleAlarm = true
+                    startAlarm = true
+                    alarmAlpha = 0
+                }
             }
         }
     }
@@ -854,6 +874,7 @@ mainMenuButtonHandler :: proc() {
                         fmt.print("json unmarshall unsuccessful")
                         levelData[0].levelName = "Level1"
                     }
+                    lasers = {}
                     for lvl,idx in levelData {
                         tempLaserObj : Laser
                         for des,id in levelData[idx].destinationRect {
@@ -867,6 +888,7 @@ mainMenuButtonHandler :: proc() {
                         tempLaserObj.level = levelData[idx].levelName
                         append(&lasers, tempLaserObj)
                     }
+                    pillars = {}
                     for lvl,idx in levelData {
                         tempPillarObj : Pillar
                         for des,id in levelData[idx].destinationRect {
@@ -1179,6 +1201,18 @@ drawScene :: proc() {
                         rl.DrawTexturePro(textureAtlas, sr, levelData[chosenLevel].destinationRect[idx], {0,0}, 0.0, rl.WHITE)
                     }
                 }
+                if enableGrid {
+                    for i in -100..<100 {
+                        x := i32(playerDestination.x/32)*32 +i32(i*32)
+                        y := i32(playerDestination.y/32)*32 + i32(i*32)
+                        startPosX := rl.Vector2{0,f32(y)}
+                        endPosX := rl.Vector2{f32(100*x),f32(y)}
+                        startPosY := rl.Vector2{f32(x),0}
+                        endPosY := rl.Vector2{f32(x),f32(100*y)}
+                        rl.DrawLineEx(startPosX, endPosX, 2.0, rl.Color{255,255,255,120})
+                        rl.DrawLineEx(startPosY, endPosY, 2.0, rl.Color{255,255,255,120})
+                    }
+                }
             }
             if !editorMode {
                 for des,idx in lasers[chosenLevel].destRect {
@@ -1191,6 +1225,8 @@ drawScene :: proc() {
                 }
                 for des,idx in pillars[chosenLevel].destRect{
                     rl.DrawTexturePro(textureAtlas, pillars[chosenLevel].srcRect[idx], des, {0,0}, 0.0, rl.WHITE)
+                    // pillarHitBox := rl.Rectangle{des.x + des.width/3.5,des.y + des.height/8, des.width/2.5,des.height/1.25}
+                    // rl.DrawRectanglePro(pillarHitBox, {0,0}, 0.0, rl.Color{0,0,255,120})
                 }
             }
             if toggleAlarm {
@@ -1217,7 +1253,7 @@ drawScene :: proc() {
             }
             for sr,idx in levelEditorAsset.sourceRect {
                 if strings.contains(levelEditorAsset.objectName[idx], displayString) {
-                    if Temp_width > levelEditorObject.destRect[1].width {
+                    if Temp_width + levelEditorAsset.destinationRect[idx].width > levelEditorObject.destRect[1].width {
                         Temp_width = 0
                         heightAdder += Temp_height
                         Temp_height = 0
@@ -1336,9 +1372,9 @@ render :: proc() {
 }
 
 init :: proc() {
+    rl.SetConfigFlags({.VSYNC_HINT, .WINDOW_RESIZABLE})
     rl.InitWindow(i32(SCREEN_WIDTH), i32(SCREEN_HEIGHT), "The Escape")
     rl.InitAudioDevice()
-    rl.SetConfigFlags({.VSYNC_HINT})
     rl.SetTargetFPS(rl.GetMonitorRefreshRate(0))
     rl.SetExitKey(.KP_0)
     isRunning = true
@@ -1350,12 +1386,19 @@ init :: proc() {
         {f32(SCREEN_WIDTH)/1.8 - 128, f32(SCREEN_HEIGHT)/1.5 + 20, 128, 64},
         {f32(SCREEN_WIDTH)/1.8 - 128, f32(SCREEN_HEIGHT)/1.5 + 128, 128, 64},
     }
-    puzzleButtonDestRects : [5]rl.Rectangle = {
+    puzzleButtonDestRects : [12]rl.Rectangle = {
         {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 20, 384, 64},
         {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 100, 384, 64},
         {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 180, 384, 64},
         {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 260, 384, 64},
         {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 340, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 420, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 500, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 580, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 660, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 740, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 820, 384, 64},
+        {f32(SCREEN_WIDTH)/8 - 128, f32(SCREEN_HEIGHT)/16 + 900, 384, 64},
     }
     returnMenuButtonDestRect : rl.Rectangle = {f32(SCREEN_WIDTH) - 128, f32(SCREEN_HEIGHT) - 20, 256, 128}
     restartButtonDestRect : rl.Rectangle = {f32(SCREEN_WIDTH) - 128, f32(SCREEN_HEIGHT) + 220, 256, 128}
@@ -1403,7 +1446,7 @@ init :: proc() {
     for brect,idx in mainMenuButtonDestRects {
         append(&mainMenuButtons.destRect,brect)
     }
-    for i in 0..<5 {
+    for i in 0..<len(puzzleButtonDestRects) {
         append(&PuzzleSelectButtons.srcRect, textureData.sourceRects[puzzleSelectIndex])
         puzzle := "Puzzle"
         text := fmt.tprint(puzzle,i+1)
